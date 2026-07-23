@@ -1,0 +1,7 @@
+.review-card { border: 1px solid #f2f4f6; border-radius: 16px; padding: 16px; background: #fff; }
+.review-card__head { display: flex; gap: 9px; align-items: center; }
+.review-card__avatar { align-items: center; background: #eaf2ff; border-radius: 50%; color: #3182f6; display: flex; font-size: 13px; font-weight: 800; height: 34px; justify-content: center; width: 34px; }
+.review-card__name { color: #191f28; font-size: 13px; font-weight: 700; margin-bottom: 3px; }
+.review-card__name .status-badge { margin-left: 4px; font-size: 9px; padding: 2px 6px; }
+.review-card__head div div:last-child span:last-child { color: #b0b8c1; font-size: 11px; margin-left: 6px; }
+.review-card p { color: #4e5968; font-size: 13px; line-height: 1.6; margin: 12px 0 0; }

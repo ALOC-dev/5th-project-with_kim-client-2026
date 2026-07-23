@@ -1,0 +1,21 @@
+import Icon from '../../components/Icon';
+import StatusBadge from '../../components/StatusBadge';
+import DetailRow from '../../components/DetailRow';
+import ReviewCard from '../../components/ReviewCard';
+import { reviews as demoReviews } from '../../constants';
+import './ListingDetails.css';
+
+export default function ListingDetails({ listing, isFavorite, onBack, onFavorite, onInquiry }) {
+  const price = listing.rent ? `보증금 ${listing.deposit} / 월 ${listing.rent}` : `전세 ${listing.deposit}`;
+  return <section className="listing-details"><header className="listing-details__header"><button onClick={onBack}><Icon name="back" />뒤로</button><button className={isFavorite ? 'is-favorite' : ''} onClick={() => onFavorite(listing.id)}>♥ 찜하기</button></header><div className="listing-details__hero"><span>{listing.title.slice(0, 1)}</span><StatusBadge>{listing.dealType}</StatusBadge></div><div className="listing-details__body"><section className="listing-details__intro"><div><p><StatusBadge tone="green">집주인 인증</StatusBadge> <StatusBadge>{listing.dealType}</StatusBadge></p><h1>{listing.title}</h1><span>{listing.address} · 도보 {listing.walkingMinutes || '정보 없음'} · ★ {listing.rating || '-'}</span></div><div><h2>{price}</h2><em>시세 대비 {listing.marketDiff} · 인근 시세 {listing.marketPrice}</em></div></section><div className="listing-details__grid"><SafetyCard listing={listing} /><section className="listing-details__right"><InfoCard listing={listing} /><WalkCard listing={listing} /><AgentCard listing={listing} onInquiry={onInquiry} /></section></div><Reviews reviews={demoReviews} /><RiskCard listing={listing} /></div></section>;
+}
+function SafetyCard({ listing }) { const score = Math.round(listing.safetyScore); return <section className="safety-card"><div className="safety-card__title"><strong>{listing.safetyScore}</strong><div><h2>안전 점수</h2><p>시세·등기부·치안·교통 종합 분석</p></div></div>{[['시세 적정성', 10], ['등기부 안전', listing.risk.mortgage === '없음' ? 10 : 7], ['치안', score]].map(([name, value]) => <div className="score-row" key={name}><div><span>{name}</span><b>{value}</b></div><i><em style={{ width: `${value * 10}%` }} /></i></div>)}<p className="safety-card__result">등기부: 근저당 {listing.risk.mortgage} · {listing.risk.level}</p></section>; }
+function InfoCard({ listing }) { return <section className="info-card"><h2>매물 정보</h2><DetailRow label="건물유형" value={listing.buildingType} /><DetailRow label="면적" value={listing.area} /><DetailRow label="층수" value={listing.floor} /><DetailRow label="관리비" value={listing.maintenance} /><div>{listing.features.map((feature) => <span key={feature}>{feature}</span>)}</div></section>; }
+function WalkCard({ listing }) { return <section className="walk-card"><Icon name="pin" /><div><small>내가 설정한 건물까지</small><b>정보대 도보 {listing.walkingMinutes}분 {listing.distance}</b></div></section>; }
+function AgentCard({ listing, onInquiry }) { return <section className="agent-card"><h2>담당 공인중개사</h2><div><span>{listing.agent.name.slice(0, 1)}</span><p><b>{listing.agent.name} <StatusBadge tone="green">인증</StatusBadge></b><small>{listing.agent.office}</small><small>{listing.agent.license}</small></p><button onClick={() => onInquiry(listing)}><Icon name="message" /></button></div></section>; }
+function Reviews({ reviews }) {
+  const average = reviews.length ? (reviews.reduce((sum, review) => sum + review.rating, 0) / reviews.length).toFixed(1) : '-';
+  return <section className="details-reviews"><header><div><h2>학생 리뷰</h2><span>등록 리뷰 {reviews.length}건</span></div><button><Icon name="plus" size={14} />리뷰 작성</button></header><div className="details-reviews__summary"><strong>{average}</strong><div><span>청결도</span><i><em /></i><b>-</b></div><div><span>위치</span><i><em /></i><b>-</b></div></div><div className="details-reviews__cards">{reviews.map((review) => <ReviewCard key={review.id} review={review} />)}</div></section>;
+}
+
+function RiskCard({ listing }) { return <section className="risk-card"><div><h2>전세사기 위험도 진단</h2><StatusBadge tone={listing.risk.level === '안전' ? 'green' : 'orange'}>{listing.risk.level}</StatusBadge></div><p>계약 전 등기부등본을 업로드해 최신 분석 결과를 확인하세요.</p><div>{[['근저당권', listing.risk.mortgage], ['전세가율', listing.risk.ratio], ['LH 보증보험', listing.risk.lh], ['HUG 보증보험', listing.risk.hug]].map(([label, value]) => <span key={label}>{label} <b>{value}</b></span>)}</div><button>등기부등본 업로드 및 분석</button></section>; }
