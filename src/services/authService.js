@@ -1,5 +1,5 @@
-import { API_BASE_URL } from './apiConfig';
-
+// const API_BASE_URL = 'http://www.sibang.site';
+const API_BASE_URL = 'http://localhost:8080'
 const KAKAO_LOGIN_START_PATH = '/api/auth/kakao';
 const ACCESS_TOKEN_KEY = 'sibang.accessToken';
 const REFRESH_TOKEN_KEY = 'sibang.refreshToken';
@@ -20,9 +20,7 @@ export async function exchangeKakaoCode(code) {
   if (!response.ok) throw new Error('Kakao login failed');
 
   // Spring Boot LoginResponse: { id, accessToken, refreshToken, tokenType }
-  const loginResponse = await response.json();
-  const { id, accessToken, refreshToken } = loginResponse;
-  const tokenType = loginResponse.tokenType || loginResponse.TokenType || 'Bearer';
+  const { id, accessToken, refreshToken, tokenType } = await response.json();
   if (!accessToken) throw new Error('Access token is missing');
 
   localStorage.setItem(ACCESS_TOKEN_KEY, accessToken);
