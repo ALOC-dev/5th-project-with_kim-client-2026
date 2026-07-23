@@ -23,11 +23,11 @@ function loadKakaoMapSdk() {
 }
 
 function createHomeMarker(maps, position, title) {
-  const markerSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="42" height="52" viewBox="0 0 42 52"><path fill="#3182f6" d="M21 1C10 1 1 9.9 1 21c0 15.1 20 30 20 30s20-14.9 20-30C41 9.9 32 1 21 1Z"/><circle cx="21" cy="21" r="13" fill="white"/><path d="m13.5 21 7.5-6.2 7.5 6.2v8.2a1.7 1.7 0 0 1-1.7 1.7H15.2a1.7 1.7 0 0 1-1.7-1.7V21Z" fill="none" stroke="#3182f6" stroke-linejoin="round" stroke-width="2.4"/><path d="M18.5 30.5v-5h5v5" fill="none" stroke="#3182f6" stroke-linejoin="round" stroke-width="2.4"/></svg>`;
+  const markerSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="34" height="42" viewBox="0 0 42 52"><path fill="#3182f6" d="M21 1C10 1 1 9.9 1 21c0 15.1 20 30 20 30s20-14.9 20-30C41 9.9 32 1 21 1Z"/><circle cx="21" cy="21" r="13" fill="white"/><path d="m13.5 21 7.5-6.2 7.5 6.2v8.2a1.7 1.7 0 0 1-1.7 1.7H15.2a1.7 1.7 0 0 1-1.7-1.7V21Z" fill="none" stroke="#3182f6" stroke-linejoin="round" stroke-width="2.4"/><path d="M18.5 30.5v-5h5v5" fill="none" stroke="#3182f6" stroke-linejoin="round" stroke-width="2.4"/></svg>`;
   const image = new maps.MarkerImage(
     `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(markerSvg)}`,
-    new maps.Size(42, 52),
-    { offset: new maps.Point(21, 52) },
+    new maps.Size(34, 42),
+    { offset: new maps.Point(17, 42) },
   );
   return new maps.Marker({ position, image, title });
 }

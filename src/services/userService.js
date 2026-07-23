@@ -16,6 +16,6 @@ export async function getResidenceVerification() {
 
 export async function updateUserPreferences(preferences) {
   // TODO: API 연동 필요 - PUT '-'
-  // 설명: 사용자의 기준 건물, 예산, 알림 수신 여부 변경 결과를 기대합니다.
+  // 설명: 사용자의 수업 건물 목록, 보증금·월세 예산, 알림 수신 여부 변경 결과를 기대합니다.
   return Promise.resolve(preferences);
 }
