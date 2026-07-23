@@ -1,0 +1,36 @@
+.listing-preview.is-locked .listing-preview__body,
+.listing-preview.is-locked footer {
+  filter: blur(5px);
+  pointer-events: none;
+  user-select: none;
+}
+
+.listing-preview__login-gate {
+  align-items: center;
+  background: rgba(255, 255, 255, 0.88);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  inset: 270px 0 0;
+  justify-content: center;
+  position: absolute;
+  text-align: center;
+  z-index: 3;
+}
+
+.listing-preview__login-gate b { color: #191f28; font-size: 13px; }
+
+.listing-preview__login-gate button {
+  background: #3182f6;
+  border: 0;
+  border-radius: 9px;
+  color: #fff;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 800;
+  padding: 10px 14px;
+}
+
+@media (max-width: 760px) {
+  .listing-preview__login-gate { inset: 190px 0 0; }
+}

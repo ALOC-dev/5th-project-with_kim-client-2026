@@ -1,0 +1,2 @@
+.detail-row { align-items: center; display: flex; font-size: 12px; justify-content: space-between; margin-bottom: 10px; }
+.detail-row span { color: #8b95a1; }.detail-row strong { color: #191f28; font-weight: 700; }
