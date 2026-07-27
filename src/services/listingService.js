@@ -72,3 +72,9 @@ export async function submitInquiry(listingId, message) {
   // 설명: 매물 담당자에게 보낼 문의 내용과 문의 생성 결과를 기대합니다.
   return Promise.resolve({ listingId, message });
 }
+
+export async function uploadRegistryDocument(listingId, file) {
+  // TODO: API 연동 필요 - POST '-'
+  // 설명: 매물 ID와 등기부등본 파일을 multipart/form-data로 전송하고 위험도 분석 완료 상태를 기대합니다.
+  return Promise.resolve({ listingId, fileName: file.name, status: 'completed' });
+}

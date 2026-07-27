@@ -20,7 +20,9 @@ export async function exchangeKakaoCode(code) {
   if (!response.ok) throw new Error('Kakao login failed');
 
   // Spring Boot LoginResponse: { id, accessToken, refreshToken, tokenType }
-  const { id, accessToken, refreshToken, tokenType } = await response.json();
+  const loginResponse = await response.json();
+  const { id, accessToken, refreshToken } = loginResponse;
+  const tokenType = loginResponse.tokenType || loginResponse.TokenType || 'Bearer';
   if (!accessToken) throw new Error('Access token is missing');
 
   localStorage.setItem(ACCESS_TOKEN_KEY, accessToken);

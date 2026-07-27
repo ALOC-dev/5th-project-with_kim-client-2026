@@ -6,6 +6,7 @@ export { default as FilterPanel } from './FilterPanel';
 export { default as ChatAssistant } from './ChatAssistant';
 export { default as ListingDetails } from './ListingDetails';
 export { default as FavoritesSection } from './FavoritesSection';
+export { default as RiskDiagnosisGuide } from './RiskDiagnosisGuide';
 export { default as MarketAnalysis } from './MarketAnalysis';
 export { default as ChecklistSection } from './ChecklistSection';
 export { default as ProfileSection } from './ProfileSection';

@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { mapListings } from '../../constants';
-import { useResidenceVerification } from '../../hooks';
+import { useResidenceVerification, useUserPreferences } from '../../hooks';
 import Sidebar from '../../sections/Sidebar';
 import Topbar from '../../sections/Topbar';
 import MapExplorer from '../../sections/MapExplorer';
@@ -11,30 +11,48 @@ import ListingDetails from '../../sections/ListingDetails';
 import FavoritesSection from '../../sections/FavoritesSection';
 import MarketAnalysis from '../../sections/MarketAnalysis';
 import ChecklistSection from '../../sections/ChecklistSection';
-import ProfileSection from '../../sections/ProfileSection';
-import OnboardingSection from '../../sections/OnboardingSection';
+import ProfileSection from '../../sections/ProfileSection/ProfileSection';
+import OnboardingSection from '../../sections/OnboardingSection/OnboardingSection';
 import ResidenceVerificationBanner from '../../sections/ResidenceVerificationBanner';
+import RiskDiagnosisGuide from '../../sections/RiskDiagnosisGuide';
+import { uploadRegistryDocument } from '../../services';
 import './HousingPage.css';
+
+const defaultFilters = { dealType: '전체', depositLimit: 15000, rentLimit: 100, roomType: '전체', walking: '전체', safety: '전체', options: { elevator: true, parking: false, cctv: true, pets: false } };
 
 export default function HousingPage({ isAuthenticated, userId, onRequireLogin, onLogout }) {
   const [activePage, setActivePage] = useState('home');
   const [selectedListing, setSelectedListing] = useState(null);
   const [favorites, setFavorites] = useState([]);
   const [compareIds, setCompareIds] = useState([]);
-  const [onboardingOpen, setOnboardingOpen] = useState(false);
+  const [registryUploads, setRegistryUploads] = useState({});
+  const [onboardingMode, setOnboardingMode] = useState(null);
+  const [riskGuideOpen, setRiskGuideOpen] = useState(false);
   const [filterOpen, setFilterOpen] = useState(false);
   const [verificationDismissed, setVerificationDismissed] = useState(false);
-  const [filters, setFilters] = useState({ dealType: '전체', depositLimit: 15000, rentLimit: 100, roomType: '전체', walking: '전체', safety: '전체', options: { elevator: true, parking: false, cctv: true, pets: false } });
+  const [filters, setFilters] = useState(defaultFilters);
   const listings = mapListings;
   const shownListings = listings.filter((listing) => matchesFilters(listing, filters));
   const residenceVerification = useResidenceVerification(isAuthenticated);
+  const { preferences, savePreferences, requiredOnboardingMode } = useUserPreferences(userId, isAuthenticated);
 
+  useEffect(() => {
+    if (requiredOnboardingMode) setOnboardingMode(requiredOnboardingMode);
+  }, [requiredOnboardingMode]);
+
+  const openOnboarding = (mode = 'all') => setOnboardingMode(mode);
+  const closeOnboarding = () => setOnboardingMode(null);
+  const deferOnboarding = () => savePreferences({ onboardingDeferred: true });
   const handleFavorite = async (id) => {
     if (!isAuthenticated) return onRequireLogin();
     const willFavorite = !favorites.includes(id);
     setFavorites((items) => willFavorite ? [...items, id] : items.filter((item) => item !== id));
   };
   const handleCompare = (id) => setCompareIds((items) => items.includes(id) ? items.filter((item) => item !== id) : items.length < 3 ? [...items, id] : items);
+  const handleRegistryUpload = async (listingId, file) => {
+    const upload = await uploadRegistryDocument(listingId, file);
+    setRegistryUploads((uploads) => ({ ...uploads, [listingId]: upload }));
+  };
   const handleInquiry = async (listing) => {
     if (!isAuthenticated) return onRequireLogin();
     window.alert(`${listing.agent.name} 공인중개사에게 문의를 준비했어요.`);
@@ -51,10 +69,16 @@ export default function HousingPage({ isAuthenticated, userId, onRequireLogin, o
     setFilters(nextFilters);
     if (selectedListing && !matchesFilters(selectedListing, nextFilters)) setSelectedListing(null);
   };
-  const resetFilters = () => setFilters({ dealType: '전체', depositLimit: 15000, rentLimit: 100, roomType: '전체', walking: '전체', safety: '전체', options: { elevator: true, parking: false, cctv: true, pets: false } });
+  const resetFilters = () => setFilters(defaultFilters);
+  const openFavoritesFromRiskGuide = () => {
+    setRiskGuideOpen(false);
+    setActivePage('favorites');
+    setSelectedListing(null);
+  };
   const homeContent = <><Topbar mapOnly count={shownListings.length} onOpenFilter={() => setFilterOpen(true)} isAuthenticated={isAuthenticated} userId={userId} onLogin={onRequireLogin} onLogout={onLogout} />{!verificationDismissed && <ResidenceVerificationBanner verification={residenceVerification} onDismiss={() => setVerificationDismissed(true)} />}<div className="housing-page__map"><MapExplorer listings={shownListings} onSelect={setSelectedListing} />{selectedListing && <ListingPreview listing={selectedListing} isFavorite={favorites.includes(selectedListing.id)} isLocked={!isAuthenticated} onClose={() => setSelectedListing(null)} onFavorite={handleFavorite} onInquiry={handleInquiry} onRequireLogin={onRequireLogin} />}</div></>;
-  const content = activePage === 'home' ? homeContent : activePage === 'detail' && selectedListing ? <ListingDetails listing={selectedListing} isFavorite={favorites.includes(selectedListing.id)} onBack={() => setActivePage('home')} onFavorite={handleFavorite} onInquiry={handleInquiry} /> : activePage === 'favorites' ? <FavoritesSection listings={listings} favorites={favorites} compareIds={compareIds} onSelect={openDetail} onFavorite={handleFavorite} onCompare={handleCompare} /> : activePage === 'market' ? <MarketAnalysis listings={listings} /> : activePage === 'checklist' ? <ChecklistSection /> : <ProfileSection onOpenOnboarding={() => setOnboardingOpen(true)} />;
-  return <main className="housing-page"><Sidebar activePage={activePage === 'detail' ? 'home' : activePage} onNavigate={(page) => { if (!isAuthenticated && page !== 'home') return onRequireLogin(); setActivePage(page); setSelectedListing(null); }} onOpenOnboarding={() => isAuthenticated ? setOnboardingOpen(true) : onRequireLogin()} /><div className="housing-page__main">{content}</div><ChatAssistant />{filterOpen && <FilterPanel filters={filters} onChange={handleFilterChange} onClose={() => setFilterOpen(false)} onReset={resetFilters} count={shownListings.length} />}{onboardingOpen && <OnboardingSection onClose={() => setOnboardingOpen(false)} />}</main>;
+  const content = activePage === 'home' ? homeContent : activePage === 'detail' && selectedListing ? <ListingDetails listing={selectedListing} isFavorite={favorites.includes(selectedListing.id)} onBack={() => setActivePage('home')} onFavorite={handleFavorite} onInquiry={handleInquiry} /> : activePage === 'favorites' ? <FavoritesSection listings={listings} favorites={favorites} compareIds={compareIds} onSelect={openDetail} onFavorite={handleFavorite} onCompare={handleCompare} registryUploads={registryUploads} onUploadRegistry={handleRegistryUpload} /> : activePage === 'market' ? <MarketAnalysis listings={listings} /> : activePage === 'checklist' ? <ChecklistSection /> : <ProfileSection preferences={preferences} onOpenBuildingSettings={() => openOnboarding('building')} onOpenBudgetSettings={() => openOnboarding('budget')} />;
+
+  return <main className="housing-page"><Sidebar activePage={activePage === 'detail' ? 'home' : activePage} onNavigate={(page) => { if (!isAuthenticated && page !== 'home') return onRequireLogin(); setActivePage(page); setSelectedListing(null); }} onOpenRiskGuide={() => isAuthenticated ? setRiskGuideOpen(true) : onRequireLogin()} /><div className="housing-page__main">{content}</div>{!filterOpen && <ChatAssistant />}{filterOpen && <FilterPanel filters={filters} onChange={handleFilterChange} onClose={() => setFilterOpen(false)} onReset={resetFilters} count={shownListings.length} />}{onboardingMode && <OnboardingSection mode={onboardingMode} preferences={preferences} onClose={closeOnboarding} onDefer={deferOnboarding} onSave={savePreferences} />}{riskGuideOpen && <RiskDiagnosisGuide onClose={() => setRiskGuideOpen(false)} onGoToFavorites={openFavoritesFromRiskGuide} />}</main>;
 }
 
 function matchesFilters(listing, filters) {

@@ -1,0 +1,54 @@
+import { useEffect, useState } from 'react';
+import { defaultUserPreferences } from '../constants/preferences';
+import { updateUserPreferences } from '../services';
+
+function getStorageKey(userId) {
+  return `sibang.user-preferences.${userId}`;
+}
+
+function readPreferences(userId) {
+  if (!userId) return defaultUserPreferences;
+
+  try {
+    const saved = window.localStorage.getItem(getStorageKey(userId));
+    return saved ? { ...defaultUserPreferences, ...JSON.parse(saved) } : defaultUserPreferences;
+  } catch {
+    return defaultUserPreferences;
+  }
+}
+
+export function getRequiredOnboardingMode(preferences) {
+  const hasClassBuilding = Boolean(preferences.primaryClassBuildingId || preferences.classBuildingIds?.length);
+  const hasBudget = preferences.budgetConfigured === true || (preferences.budgetConfigured === undefined && preferences.maxDeposit !== null && preferences.maxDeposit !== undefined && preferences.maxMonthlyRent !== null && preferences.maxMonthlyRent !== undefined);
+
+  if (!hasClassBuilding && !hasBudget) return 'all';
+  if (!hasClassBuilding) return 'building';
+  if (!hasBudget) return 'budget';
+  return null;
+}
+
+export function useUserPreferences(userId, isAuthenticated) {
+  const [preferences, setPreferences] = useState(() => readPreferences(userId));
+
+  useEffect(() => {
+    setPreferences(readPreferences(userId));
+  }, [userId]);
+
+  const savePreferences = async (changes) => {
+    const nextPreferences = { ...preferences, ...changes };
+    setPreferences(nextPreferences);
+
+    if (userId) {
+      window.localStorage.setItem(getStorageKey(userId), JSON.stringify(nextPreferences));
+      await updateUserPreferences(nextPreferences);
+    }
+
+    return nextPreferences;
+  };
+
+  return {
+    preferences,
+    savePreferences,
+    requiredOnboardingMode: isAuthenticated && !preferences.onboardingDeferred ? getRequiredOnboardingMode(preferences) : null,
+  };
+}
