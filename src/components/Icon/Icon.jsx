@@ -13,6 +13,8 @@ const paths = {
   close: <path d="m6 6 12 12M18 6 6 18" />,
   plus: <path d="M12 5v14M5 12h14" />,
   back: <path d="m15 19-7-7 7-7" />,
+  shield: <><path d="m12 3 7 3v5c0 4.7-3 8.2-7 10-4-1.8-7-5.3-7-10V6z" /><path d="m9 12 2 2 4-4" /></>,
+  upload: <><path d="M12 16V3" /><path d="m7 8 5-5 5 5" /><path d="M5 14v5a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-5" /></>,
 };
 
 export default function Icon({ name, size = 18, className = '' }) {

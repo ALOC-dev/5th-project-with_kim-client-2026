@@ -17,6 +17,16 @@ function readPreferences(userId) {
   }
 }
 
+export function getRequiredOnboardingMode(preferences) {
+  const hasClassBuilding = Boolean(preferences.primaryClassBuildingId || preferences.classBuildingIds?.length);
+  const hasBudget = preferences.budgetConfigured === true || (preferences.budgetConfigured === undefined && preferences.maxDeposit !== null && preferences.maxDeposit !== undefined && preferences.maxMonthlyRent !== null && preferences.maxMonthlyRent !== undefined);
+
+  if (!hasClassBuilding && !hasBudget) return 'all';
+  if (!hasClassBuilding) return 'building';
+  if (!hasBudget) return 'budget';
+  return null;
+}
+
 export function useUserPreferences(userId, isAuthenticated) {
   const [preferences, setPreferences] = useState(() => readPreferences(userId));
 
@@ -39,6 +49,6 @@ export function useUserPreferences(userId, isAuthenticated) {
   return {
     preferences,
     savePreferences,
-    shouldShowOnboarding: isAuthenticated && !preferences.onboardingCompleted && !preferences.onboardingDeferred,
+    requiredOnboardingMode: isAuthenticated && !preferences.onboardingDeferred ? getRequiredOnboardingMode(preferences) : null,
   };
 }

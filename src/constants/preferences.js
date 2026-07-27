@@ -14,6 +14,7 @@ export const defaultUserPreferences = {
   hasSecondaryClassBuilding: false,
   maxDeposit: 1000,
   maxMonthlyRent: 50,
+  budgetConfigured: false,
   onboardingCompleted: false,
   onboardingDeferred: false,
 };

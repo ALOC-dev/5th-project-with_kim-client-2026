@@ -56,8 +56,9 @@ export default function OnboardingSection({ mode = 'all', preferences, onClose, 
       primaryClassBuildingId,
       secondaryClassBuildingId: hasSecondaryClassBuilding ? secondaryClassBuildingId : null,
       hasSecondaryClassBuilding,
-      maxDeposit,
-      maxMonthlyRent,
+    maxDeposit,
+    maxMonthlyRent,
+      budgetConfigured: currentStep.id === 'budget' || isCompleted || preferences.budgetConfigured,
       onboardingCompleted: isCompleted || preferences.onboardingCompleted,
       onboardingDeferred: mode === 'all' ? false : preferences.onboardingDeferred,
     });
@@ -99,7 +100,7 @@ export default function OnboardingSection({ mode = 'all', preferences, onClose, 
       {currentStep.id === 'building' && <div className="onboarding__body"><div className="onboarding__building-ranks"><button className={isPrimarySelection ? 'is-active' : ''} onClick={() => setBuildingRank('primary')}><b>1순위</b><span>{getBuildingName(primaryClassBuildingId) || '가장 많이 듣는 장소'}</span></button><button className={!isPrimarySelection ? 'is-active' : ''} disabled={!primaryClassBuildingId} onClick={() => setBuildingRank('secondary')}><b>2순위</b><span>{hasSecondaryClassBuilding ? getBuildingName(secondaryClassBuildingId) || '다음으로 많이 듣는 장소' : '수업 장소 없음'}</span></button></div><h1 id="onboarding-title">{isPrimarySelection ? '가장 많이 듣는 수업 장소를 선택해주세요' : '그다음으로 많이 듣는 수업 장소를 선택해주세요'}</h1><p>{isPrimarySelection ? '가장 자주 가는 건물을 하나 선택해주세요.' : '한 장소에서만 수업을 듣는다면 아래 버튼을 선택해주세요.'}</p>{!isPrimarySelection && <button className={hasSecondaryClassBuilding ? 'onboarding__no-secondary' : 'onboarding__no-secondary is-selected'} onClick={chooseNoSecondaryBuilding}>{getBuildingName(primaryClassBuildingId)}에서만 수업을 들어요.</button>}<div className="onboarding__building-grid">{campusBuildings.filter((building) => building.id !== primaryClassBuildingId || isPrimarySelection).map((building) => <button className={currentBuildingId === building.id ? 'is-selected' : ''} key={building.id} onClick={() => chooseBuilding(building.id)}><span>▥</span>{building.name}</button>)}</div></div>}
       {currentStep.id === 'budget' && <div className="onboarding__body"><h1 id="onboarding-title">월 예산을 설정해주세요</h1><p>보증금과 월세 기준으로 원하는 매물을 먼저 보여드려요.</p><section className="onboarding__budget"><h2>최대 보증금</h2><div>{depositOptions.map((option) => <button className={maxDeposit === option ? 'is-selected' : ''} key={String(option)} onClick={() => setMaxDeposit(option)}>{formatDeposit(option)}</button>)}</div></section><section className="onboarding__budget"><h2>최대 월세</h2><div>{monthlyRentOptions.map((option) => <button className={maxMonthlyRent === option ? 'is-selected' : ''} key={option} onClick={() => setMaxMonthlyRent(option)}>{option}만원</button>)}</div></section></div>}
       {currentStep.id === 'complete' && <div className="onboarding__body onboarding__complete"><span>✓</span><h1 id="onboarding-title">설정이 완료됐어요</h1><p>수업 건물과 예산에 맞는 매물을 우선으로 찾아드릴게요.</p></div>}
-      <footer className="onboarding__footer"><div className="onboarding__footer-actions">{!isStandalone && stepIndex > 0 && <button className="onboarding__back" onClick={handleBack}>이전</button>}<button className="onboarding__next" disabled={currentStep.id === 'building' && !primaryClassBuildingId} onClick={handleNext}>{nextLabel}</button></div>{!isStandalone && currentStep.id !== 'complete' && <button className="onboarding__defer" onClick={handleDefer}>나중에 할게요</button>}</footer>
+      <footer className="onboarding__footer"><div className="onboarding__footer-actions">{!isStandalone && currentStep.id !== 'complete' && <button className="onboarding__defer" onClick={handleDefer}>나중에 설정하기</button>}{!isStandalone && stepIndex > 0 && <button className="onboarding__back" onClick={handleBack}>이전</button>}<button className="onboarding__next" disabled={currentStep.id === 'building' && !primaryClassBuildingId} onClick={handleNext}>{nextLabel}</button></div></footer>
     </div>
   </section></div>;
 }
