@@ -9,7 +9,7 @@ test('renders the Kakao login start page', async () => {
 });
 
 test('uses the Spring Boot endpoint for the browser Kakao redirect', () => {
-  expect(getKakaoLoginStartUrl()).toBe('http://localhost:8080/api/auth/kakao');
+  expect(getKakaoLoginStartUrl()).toBe('https://www.sibang.site/api/auth/kakao');
 });
 
 test('stores tokens returned from the Spring Boot Kakao login response', async () => {
@@ -25,7 +25,7 @@ test('stores tokens returned from the Spring Boot Kakao login response', async (
 
   await exchangeKakaoCode('kakao-code');
 
-  expect(global.fetch).toHaveBeenCalledWith('http://localhost:8080/api/auth/login/kakao?code=kakao-code');
+  expect(global.fetch).toHaveBeenCalledWith('https://www.sibang.site/api/auth/login/kakao?code=kakao-code');
   expect(localStorage.getItem('sibang.tokenType')).toBe('Bearer');
   expect(getAuthorizationHeader()).toEqual({ Authorization: 'Bearer access-token' });
 });

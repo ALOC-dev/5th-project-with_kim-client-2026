@@ -7,11 +7,8 @@ export async function getUserProfile() {
 export async function getResidenceVerification() {
   // TODO: API 연동 필요 - GET '-'
   // 설명: 로그인 사용자의 실거주 인증 여부, 인증 주소, 리뷰 혜택 문구를 반환하는 응답이 필요합니다.
-  return Promise.resolve({
-    isVerified: true,
-    address: '전농동 345-67',
-    rewardMessage: '리뷰를 남기면 전세사기 위험도 무료 열람권을 드려요.',
-  });
+  // 인증 API가 연결되기 전에는 완료 상태를 추정하지 않습니다.
+  return Promise.resolve(null);
 }
 
 export async function updateUserPreferences(preferences) {

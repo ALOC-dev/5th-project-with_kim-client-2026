@@ -1,5 +1,4 @@
-// const API_BASE_URL = 'http://www.sibang.site';
-const API_BASE_URL = 'http://localhost:8080'
+import { API_BASE_URL } from './apiConfig';
 const KAKAO_LOGIN_START_PATH = '/api/auth/kakao';
 const ACCESS_TOKEN_KEY = 'sibang.accessToken';
 const REFRESH_TOKEN_KEY = 'sibang.refreshToken';
