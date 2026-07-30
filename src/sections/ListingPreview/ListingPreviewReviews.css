@@ -1,0 +1,5 @@
+.listing-preview__review-empty { color: #8b95a1; font-size: 12px; margin: 15px 0; }
+.listing-preview__reviewer p small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.listing-preview__review button:disabled { color: #b0b8c1; cursor: default; }
+.listing-preview__review button.is-review-cta { background: #3182f6; color: #fff; }
+.listing-preview__review-list { display: grid; gap: 8px; margin: 14px 0; }

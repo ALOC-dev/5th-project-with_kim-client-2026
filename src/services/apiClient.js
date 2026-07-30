@@ -2,15 +2,16 @@ import { getAuthorizationHeader } from './authService';
 import { API_BASE_URL } from './apiConfig';
 
 export async function apiRequest(path, { method = 'GET', body, headers = {} } = {}) {
+  const isFormData = typeof FormData !== 'undefined' && body instanceof FormData;
   const response = await fetch(`${API_BASE_URL}${path}`, {
     method,
     headers: {
       Accept: 'application/json',
       ...getAuthorizationHeader(),
       ...headers,
-      ...(body ? { 'Content-Type': 'application/json' } : {}),
+      ...(body && !isFormData ? { 'Content-Type': 'application/json' } : {}),
     },
-    body: body ? JSON.stringify(body) : undefined,
+    body: body ? isFormData ? body : JSON.stringify(body) : undefined,
   });
 
   if (!response.ok) {

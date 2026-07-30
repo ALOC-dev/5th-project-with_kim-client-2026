@@ -1,0 +1,7 @@
+@media (max-width: 760px) {
+  .listing-preview { transition: transform .2s ease-out; }
+  .listing-preview.is-dragging { transition: none; }
+  .listing-preview__drag-handle { align-items: center; cursor: grab; display: flex; height: 30px; justify-content: center; left: 50%; position: absolute; top: 0; touch-action: none; transform: translateX(-50%); width: 96px; z-index: 4; }
+  .listing-preview__drag-handle::before { background: rgba(255, 255, 255, .8); border-radius: 999px; content: ''; height: 4px; width: 34px; }
+  .listing-preview__drag-handle:active { cursor: grabbing; }
+}

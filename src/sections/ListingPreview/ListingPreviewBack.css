@@ -1,0 +1,2 @@
+.listing-preview__photo .listing-preview__back { left: 22px; right: auto; top: 16px; }
+@media (max-width: 760px) { .listing-preview__photo .listing-preview__back { left: 16px; top: 13px; } }

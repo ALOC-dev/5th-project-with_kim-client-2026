@@ -1,0 +1,4 @@
+.building-listings-panel__header { display: block; padding: 20px 25px; position: relative; }
+.building-listings-panel__header > div { margin-top: 38px; }
+.building-listings-panel__back { align-items: center; background: #f2f4f6; border: 0; border-radius: 50%; color: #6b7684; cursor: pointer; display: flex; justify-content: center; left: 22px; padding: 8px; position: absolute; top: 16px; }
+@media (max-width: 760px) { .building-listings-panel__header { padding: 18px; }.building-listings-panel__back { left: 16px; top: 13px; } }

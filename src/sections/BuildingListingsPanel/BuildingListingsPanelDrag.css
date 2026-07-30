@@ -1,0 +1,8 @@
+@media (max-width: 760px) {
+  .building-listings-panel { transition: max-height .2s ease-out, transform .2s ease-out; }
+  .building-listings-panel.is-dragging { transition: none; }
+  .building-listings-panel.is-expanded { max-height: min(92dvh, 820px); }
+  .building-listings-panel__drag-handle { align-items: center; cursor: grab; display: flex; height: 30px; justify-content: center; left: 50%; position: absolute; top: 0; touch-action: none; transform: translateX(-50%); width: 96px; z-index: 4; }
+  .building-listings-panel__drag-handle::before { background: #c8d0da; border-radius: 999px; content: ''; height: 4px; width: 34px; }
+  .building-listings-panel__drag-handle:active { cursor: grabbing; }
+}

@@ -4,6 +4,39 @@ import './KakaoMap.css';
 const SDK_ID = 'kakao-map-sdk';
 const CAMPUS_CENTER = { lat: 37.5838, lng: 127.0587 };
 const CAMPUS_AREA_RADIUS_METERS = 650;
+const MARKER_COLORS = {
+  monthly: '#3182f6',
+  jeonse: '#f59e0b',
+};
+
+function getCoordinateKey(latitude, longitude) {
+  return `${latitude.toFixed(6)},${longitude.toFixed(6)}`;
+}
+
+function resolveListingPosition(maps, geocoder, listing) {
+  if (Number.isFinite(Number(listing.latitude)) && Number.isFinite(Number(listing.longitude))) {
+    return Promise.resolve({
+      listing,
+      latitude: Number(listing.latitude),
+      longitude: Number(listing.longitude),
+    });
+  }
+
+  return new Promise((resolve) => {
+    geocoder.addressSearch(listing.address, (result, status) => {
+      if (status !== maps.services.Status.OK || !result[0]) {
+        resolve({ listing, latitude: null, longitude: null });
+        return;
+      }
+
+      resolve({
+        listing,
+        latitude: Number(result[0].y),
+        longitude: Number(result[0].x),
+      });
+    });
+  });
+}
 
 function loadKakaoMapSdk() {
   const appKey = process.env.REACT_APP_KAKAO_MAP_APP_KEY;
@@ -22,8 +55,8 @@ function loadKakaoMapSdk() {
   });
 }
 
-function createHomeMarker(maps, position, title) {
-  const markerSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="34" height="42" viewBox="0 0 42 52"><path fill="#3182f6" d="M21 1C10 1 1 9.9 1 21c0 15.1 20 30 20 30s20-14.9 20-30C41 9.9 32 1 21 1Z"/><circle cx="21" cy="21" r="13" fill="white"/><path d="m13.5 21 7.5-6.2 7.5 6.2v8.2a1.7 1.7 0 0 1-1.7 1.7H15.2a1.7 1.7 0 0 1-1.7-1.7V21Z" fill="none" stroke="#3182f6" stroke-linejoin="round" stroke-width="2.4"/><path d="M18.5 30.5v-5h5v5" fill="none" stroke="#3182f6" stroke-linejoin="round" stroke-width="2.4"/></svg>`;
+function createHomeMarker(maps, position, title, markerColor) {
+  const markerSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="34" height="42" viewBox="0 0 42 52"><path fill="${markerColor}" d="M21 1C10 1 1 9.9 1 21c0 15.1 20 30 20 30s20-14.9 20-30C41 9.9 32 1 21 1Z"/><circle cx="21" cy="21" r="13" fill="white"/><path d="m13.5 21 7.5-6.2 7.5 6.2v8.2a1.7 1.7 0 0 1-1.7 1.7H15.2a1.7 1.7 0 0 1-1.7-1.7V21Z" fill="none" stroke="${markerColor}" stroke-linejoin="round" stroke-width="2.4"/><path d="M18.5 30.5v-5h5v5" fill="none" stroke="${markerColor}" stroke-linejoin="round" stroke-width="2.4"/></svg>`;
   const image = new maps.MarkerImage(
     `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(markerSvg)}`,
     new maps.Size(34, 42),
@@ -38,12 +71,38 @@ function getListingPriceLabel(listing) {
   return `${listing.dealType} ${listing.deposit}`;
 }
 
-function createListingPriceOverlay(maps, position, listing, onSelect) {
+function getBuildingGroupLabel(listings) {
+  const dealTypes = new Set(listings.map((listing) => listing.dealType));
+  if (dealTypes.has('월세') && dealTypes.has('전세')) return `전월세 매물 ${listings.length}개`;
+  if (dealTypes.has('월세')) return `월세 매물 ${listings.length}개`;
+  if (dealTypes.has('전세')) return `전세 매물 ${listings.length}개`;
+  if (dealTypes.has('매매')) return `매매 매물 ${listings.length}개`;
+  return `매물 ${listings.length}개`;
+}
+
+export function getListingMarkerToneClass(listings) {
+  const hasMonthly = listings.some((listing) => listing.dealType === '월세');
+  const hasJeonse = listings.some((listing) => listing.dealType === '전세');
+
+  return hasJeonse && !hasMonthly ? 'is-jeonse' : 'is-monthly';
+}
+
+export function getListingMarkerColor(listings) {
+  return getListingMarkerToneClass(listings) === 'is-jeonse' ? MARKER_COLORS.jeonse : MARKER_COLORS.monthly;
+}
+
+function createListingPriceOverlay(maps, position, listings, onSelect, onSelectBuilding) {
+  const isBuildingGroup = listings.length > 1;
+  const listing = listings[0];
+  const dealToneClass = getListingMarkerToneClass(listings);
   const element = document.createElement('button');
-  element.className = `kakao-map__listing-price ${listing.dealType === '전세' ? 'is-jeonse' : ''}`;
+  element.className = `kakao-map__listing-price ${dealToneClass} ${isBuildingGroup ? 'is-building-group' : ''}`;
   element.type = 'button';
-  element.textContent = getListingPriceLabel(listing);
-  element.addEventListener('click', () => onSelect(listing));
+  element.textContent = isBuildingGroup ? getBuildingGroupLabel(listings) : getListingPriceLabel(listing);
+  element.addEventListener('click', () => {
+    if (isBuildingGroup) onSelectBuilding(listings);
+    else onSelect(listing);
+  });
   return new maps.CustomOverlay({ position, content: element, xAnchor: 0.5, yAnchor: -0.15, zIndex: 4 });
 }
 
@@ -56,17 +115,26 @@ function isWithinCampus(latitude, longitude) {
   return earthRadiusMeters * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)) <= CAMPUS_AREA_RADIUS_METERS;
 }
 
-export default function KakaoMap({ listings = [], onSelect }) {
+export default function KakaoMap({ listings = [], onSelect, onSelectBuilding }) {
   const containerRef = useRef(null);
   const onSelectRef = useRef(onSelect);
+  const onSelectBuildingRef = useRef(onSelectBuilding);
   const [error, setError] = useState('');
+  const [locationWarning, setLocationWarning] = useState('');
+  const [displayedCount, setDisplayedCount] = useState(0);
 
-  useEffect(() => { onSelectRef.current = onSelect; }, [onSelect]);
+  useEffect(() => {
+    onSelectRef.current = onSelect;
+    onSelectBuildingRef.current = onSelectBuilding;
+  }, [onSelect, onSelectBuilding]);
 
   useEffect(() => {
     let active = true;
     const markers = [];
     const overlays = [];
+    setError('');
+    setLocationWarning('');
+    setDisplayedCount(0);
 
     loadKakaoMapSdk()
       .then((maps) => {
@@ -128,21 +196,42 @@ export default function KakaoMap({ listings = [], onSelect }) {
           setCampusFilter(campusFilterPinned);
         });
 
-        listings.forEach((listing) => {
-          geocoder.addressSearch(listing.address, (result, status) => {
-            if (!active || status !== maps.services.Status.OK || !result[0]) return;
-            const position = new maps.LatLng(result[0].y, result[0].x);
-            const marker = createHomeMarker(maps, position, listing.title);
-            maps.event.addListener(marker, 'click', () => onSelectRef.current(listing));
-            const overlay = createListingPriceOverlay(maps, position, listing, onSelectRef.current);
-            markers.push(marker);
-            overlays.push(overlay);
-            propertyMarkers.push({ marker, overlay, latitude: Number(result[0].y), longitude: Number(result[0].x) });
+        Promise.all(listings.map((listing) => resolveListingPosition(maps, geocoder, listing)))
+          .then((resolvedListings) => {
+            if (!active) return;
+
+            const locatedListings = resolvedListings.filter(({ latitude, longitude }) => latitude !== null && longitude !== null);
+            const missingCount = resolvedListings.length - locatedListings.length;
+            const groupedListings = locatedListings.reduce((groups, listing) => {
+              const key = listing.listing.buildingId ? `building-${listing.listing.buildingId}` : getCoordinateKey(listing.latitude, listing.longitude);
+              const group = groups.get(key) || [];
+              group.push(listing);
+              groups.set(key, group);
+              return groups;
+            }, new Map());
+
+            groupedListings.forEach((group) => {
+              const [{ latitude, longitude }] = group;
+              const buildingListings = group.map(({ listing }) => listing);
+              const position = new maps.LatLng(latitude, longitude);
+              const marker = createHomeMarker(maps, position, buildingListings[0].title, getListingMarkerColor(buildingListings));
+              const handleSelect = () => {
+                if (buildingListings.length > 1) onSelectBuildingRef.current(buildingListings);
+                else onSelectRef.current(buildingListings[0]);
+              };
+              maps.event.addListener(marker, 'click', handleSelect);
+              const overlay = createListingPriceOverlay(maps, position, buildingListings, onSelectRef.current, onSelectBuildingRef.current);
+              markers.push(marker);
+              overlays.push(overlay);
+              propertyMarkers.push({ marker, overlay, latitude, longitude });
+              bounds.extend(position);
+            });
+
             refreshPropertyMarkers();
-            bounds.extend(position);
-            map.setBounds(bounds);
+            setDisplayedCount(locatedListings.length);
+            if (missingCount) setLocationWarning(`주소를 찾지 못한 매물 ${missingCount}개는 지도에 표시되지 않았습니다.`);
+            if (locatedListings.length > 0) map.setBounds(bounds);
           });
-        });
       })
       .catch(() => { if (active) setError('카카오맵을 불러오지 못했습니다. JavaScript 키와 도메인 등록을 확인해 주세요.'); });
 
@@ -153,5 +242,5 @@ export default function KakaoMap({ listings = [], onSelect }) {
     };
   }, [listings]);
 
-  return <div className="kakao-map"><div ref={containerRef} className="kakao-map__canvas" />{error && <div className="kakao-map__error"><strong>카카오맵 설정 필요</strong><span>{error}</span><code>REACT_APP_KAKAO_MAP_APP_KEY</code></div>}</div>;
+  return <div className="kakao-map"><div ref={containerRef} className="kakao-map__canvas" />{listings.length > 0 && <span className="kakao-map__count">지도 매물 {displayedCount}/{listings.length}</span>}{locationWarning && <span className="kakao-map__notice">{locationWarning}</span>}{error && <div className="kakao-map__error"><strong>카카오맵 설정 필요</strong><span>{error}</span><code>REACT_APP_KAKAO_MAP_APP_KEY</code></div>}</div>;
 }

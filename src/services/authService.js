@@ -1,5 +1,4 @@
-// const API_BASE_URL = 'http://www.sibang.site';
-const API_BASE_URL = 'http://localhost:8080'
+import { API_BASE_URL } from './apiConfig';
 const KAKAO_LOGIN_START_PATH = '/api/auth/kakao';
 const ACCESS_TOKEN_KEY = 'sibang.accessToken';
 const REFRESH_TOKEN_KEY = 'sibang.refreshToken';
@@ -13,6 +12,18 @@ export function getKakaoLoginStartUrl() {
 export function startKakaoLogin() {
   // Browser navigation sends GET /api/auth/kakao and follows Spring Boot's 302 Location response.
   window.location.assign(getKakaoLoginStartUrl());
+}
+
+export async function loginBusinessUser(credentials) {
+  // TODO: API 연동 필요 - POST '-'
+  // 설명: 공인중개사 아이디/비밀번호를 보내고 사업자용 accessToken, refreshToken, tokenType 응답을 기대합니다.
+  throw new Error('Business login API is not configured');
+}
+
+export async function requestBrokerSignup(formData) {
+  // TODO: API 연동 필요 - POST '-'
+  // 설명: 중개사무소 소재지, 사업자 아이디/비밀번호, 공인중개사 자격증 파일을 multipart/form-data로 보내는 가입 신청 응답을 기대합니다.
+  throw new Error('Broker signup API is not configured');
 }
 
 export async function exchangeKakaoCode(code) {
