@@ -5,5 +5,7 @@ export { default as ListingCard } from './ListingCard';
 export { default as ReviewCard } from './ReviewCard';
 export { default as MapPin } from './MapPin';
 export { default as DetailRow } from './DetailRow';
-export { default as KakaoMap } from './KakaoMap';
+export { default as KakaoMap } from './KakaoMap/KakaoMap';
 export { default as AuthStatus } from './AuthStatus';
+export { default as NearbyFacilities } from './NearbyFacilities';
+export { default as RegistryAnalysisOverlay } from './RegistryAnalysisOverlay';

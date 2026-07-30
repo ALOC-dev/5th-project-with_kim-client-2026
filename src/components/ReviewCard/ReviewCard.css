@@ -14,9 +14,10 @@
 .review-card__actions button { background: #fff; border: 0; border-radius: 8px; cursor: pointer; font-size: 11px; font-weight: 800; padding: 6px 8px; }
 .review-card__actions button:first-child { color: #3182f6; }
 .review-card__actions button:last-child { color: #f04452; }
-.review-card p { -webkit-box-orient: vertical; -webkit-line-clamp: 3; color: #333d4b; display: -webkit-box; font-size: 16px; line-height: 1.7; margin: 18px 0 0; overflow: hidden; word-break: keep-all; }
-.review-card p.is-expanded { -webkit-line-clamp: unset; display: block; }
-.review-card__more { background: transparent; border: 0; color: #6b7684; cursor: pointer; font-size: 16px; font-weight: 800; margin-top: 10px; padding: 0; }
+.review-card__text { -webkit-box-orient: vertical; -webkit-line-clamp: 3; color: #333d4b; display: -webkit-box; font-size: 16px; line-height: 1.7; margin: 18px 0 0; max-width: 100%; overflow: hidden; overflow-wrap: anywhere; white-space: normal; word-break: break-word; }
+.review-card__text.is-expanded { -webkit-line-clamp: unset; display: block; }
+.review-card .review-card__more.review-card__more--inline { align-items: flex-start; background: transparent; border: 0; border-radius: 0; box-shadow: none; color: #6b7684; cursor: pointer; display: inline-flex; font-size: 16px; font-weight: 800; justify-content: flex-start; line-height: 1.35; margin: 10px 0 0; min-height: auto; padding: 0; text-align: left; width: auto; }
+.review-card .review-card__more.review-card__more--inline:hover { color: #333d4b; text-decoration: underline; text-underline-offset: 3px; }
 
 @media (max-width: 760px) {
   .review-card { padding: 16px; }
@@ -25,5 +26,5 @@
   .review-card__name { font-size: 16px; }
   .review-card__residence, .review-card__date { font-size: 13px; }
   .review-card__rating--below { margin-left: 56px; }
-  .review-card p, .review-card__more { font-size: 14px; }
+  .review-card__text, .review-card .review-card__more.review-card__more--inline { font-size: 14px; }
 }

@@ -1,15 +1,10 @@
 import { useRef, useState } from 'react';
 import Icon from '../../components/Icon';
 import StatusBadge from '../../components/StatusBadge';
+import { formatListingPrice } from '../../utils/price';
 import './BuildingListingsPanel.css';
 import './BuildingListingsPanelBack.css';
 import './BuildingListingsPanelDrag.css';
-
-function getPriceLabel(listing) {
-  if (listing.dealType === '전세') return `전세 ${listing.deposit}`;
-  if (listing.dealType === '매매') return `매매 ${listing.deposit}`;
-  return `보증금 ${listing.deposit} / 월 ${listing.rent}`;
-}
 
 function ListingThumbnail({ listing }) {
   const imageUrl = listing.imageUrls?.[0];
@@ -68,7 +63,7 @@ export default function BuildingListingsPanel({ listings, onClose, onSelect }) {
         <div className="building-listings-panel__thumbnail"><ListingThumbnail listing={listing} /></div>
         <div className="building-listings-panel__content">
           <div><StatusBadge>{listing.dealType}</StatusBadge><span>{listing.roomType} · {listing.floor} · {listing.direction}</span></div>
-          <strong>{getPriceLabel(listing)}</strong>
+          <strong>{formatListingPrice(listing)}</strong>
           <p>{listing.area} · {listing.maintenance}</p>
           <small>{listing.summary}</small>
         </div>

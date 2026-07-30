@@ -8,6 +8,10 @@ const fallbackPositions = [
 const contractTypeLabels = { MONTHLY: '월세', MONTHLY_RENT: '월세', JEONSE: '전세', SALE: '매매' };
 const directionLabels = { NORTH: '북향', SOUTH: '남향', EAST: '동향', WEST: '서향' };
 const searchContractTypes = { 월세: 'MONTHLY', 전세: 'JEONSE' };
+const registryLeaseTypes = { MONTHLY: 'WOLSE', MONTHLY_RENT: 'WOLSE', WOLSE: 'WOLSE', JEONSE: 'JEONSE', 전세: 'JEONSE', 월세: 'WOLSE' };
+const pendingRegistrySubmissionStatuses = new Set(['QUEUED', 'PROCESSING', 'PENDING', 'IN_PROGRESS', 'SUBMITTED']);
+const houseAnalysisStatusLabels = { COMPLETE: 'ANALYZED', COMPLETED: 'ANALYZED', ANALYZED: 'ANALYZED' };
+const riskLevelLabels = { SAFE: '안전', LOW: '안전', WARNING: '주의', CAUTION: '주의', MEDIUM: '주의', DANGER: '위험', HIGH: '위험', RISK: '위험' };
 
 function getRoomType(roomNumber) {
   if (roomNumber === null || roomNumber === undefined) return '정보 없음';
@@ -29,19 +33,25 @@ export function mapHouseToListing(house, index = 0) {
   const houseId = house.houseId ?? house.id;
   const roomType = getRoomType(house.roomNumber);
   const direction = directionLabels[house.direction] || house.direction || '정보 없음';
+  const registryUpload = buildRegistryUploadFromHouse(house);
+  const riskScore = firstFiniteNumber(house.riskScore);
+
   return {
     id: String(houseId),
     buildingId: house.buildingId ?? null,
+    houseId: String(houseId),
     title: house.address || `매물 ${houseId}`,
     summary: house.description || '등록된 매물 설명이 없습니다.',
     dealType,
+    contractType: house.contractType ?? null,
+    depositAmount: house.deposit ?? null,
     deposit: formatAmountInManwon(house.deposit) || '정보 없음',
     rent: formatAmountInManwon(house.monthlyRent),
     address: house.address || '주소 정보 없음',
     walkingMinutes: null,
     distance: null,
     position: fallbackPositions[index % fallbackPositions.length],
-    safetyScore: null,
+    safetyScore: riskScore ?? null,
     marketDiff: '정보 없음',
     marketPrice: formatAmountInManwon(house.price) ? `${formatAmountInManwon(house.price)}만원` : '정보 없음',
     area: house.area ? `${house.area}㎡` : '정보 없음',
@@ -57,11 +67,97 @@ export function mapHouseToListing(house, index = 0) {
     reviews: 0,
     rating: 0,
     agent: { name: '정보 없음', office: '등록된 중개사 정보 없음', license: '' },
-    risk: { level: '미확인', mortgage: '미확인', ratio: '미확인', lh: '미확인', hug: '미확인' },
+    risk: buildRiskSummary(house, riskScore),
+    registryUpload,
     imageUrls: house.imageUrls || [],
     latitude: house.latitude,
     longitude: house.longitude,
   };
+}
+
+function buildRegistryUploadFromHouse(house) {
+  if (!house.analysisStatus) return undefined;
+  const status = String(house.analysisStatus).toUpperCase();
+  return {
+    status: houseAnalysisStatusLabels[status] || status,
+  };
+}
+
+export function applyRegistrySubmissionToListing(listing, submission) {
+  if (!listing || !submission) return listing;
+  const analysis = submission.analysis || {};
+  const riskScore = firstFiniteNumber(submission.riskScore, analysis.riskScore);
+  const riskSource = {
+    ...analysis,
+    riskLevel: submission.riskLevel ?? analysis.riskLevel,
+  };
+
+  return {
+    ...listing,
+    safetyScore: riskScore ?? listing.safetyScore,
+    registryUpload: submission,
+    risk: {
+      ...listing.risk,
+      ...buildRiskSummary(riskSource, riskScore),
+    },
+  };
+}
+
+function buildRiskSummary(source = {}, riskScore) {
+  return {
+    level: formatRiskLevel(source.riskLevel, riskScore),
+    mortgage: formatMortgageTotal(source.mortgageTotal),
+    ratio: formatRatio(source.jeonseRate),
+    lh: formatEligibility(source.lhEligible),
+    hug: formatEligibility(source.hugEligible),
+  };
+}
+
+function firstFiniteNumber(...values) {
+  for (const value of values) {
+    const number = Number(value);
+    if (Number.isFinite(number)) return number;
+  }
+  return undefined;
+}
+
+function formatRiskLevel(value, score) {
+  const scoreLevel = formatRiskLevelByScore(score);
+  if (scoreLevel) return scoreLevel;
+  if (!value) return '미확인';
+  return riskLevelLabels[String(value).toUpperCase()] || value;
+}
+
+function formatRiskLevelByScore(score) {
+  const number = Number(score);
+  if (!Number.isFinite(number)) return '';
+  if (number < 20) return '매우 위험';
+  if (number < 40) return '위험';
+  if (number < 60) return '주의';
+  if (number < 80) return '양호';
+  return '안전';
+}
+
+function formatMortgageTotal(value) {
+  if (value === null || value === undefined) return '미확인';
+  const amount = Number(value);
+  if (!Number.isFinite(amount)) return '미확인';
+  if (amount <= 0) return '없음';
+  const manwon = formatAmountInManwon(amount);
+  return manwon ? `${manwon}만원` : '미확인';
+}
+
+function formatRatio(value) {
+  if (value === null || value === undefined) return '미확인';
+  const ratio = Number(value);
+  if (!Number.isFinite(ratio)) return '미확인';
+  return `${Number.isInteger(ratio) ? ratio : ratio.toFixed(2).replace(/0+$/, '').replace(/\.$/, '')}%`;
+}
+
+function formatEligibility(value) {
+  if (value === true) return '가능';
+  if (value === false) return '불가';
+  return '미확인';
 }
 
 function appendManwonPrice(params, key, amount) {
@@ -114,8 +210,80 @@ export async function submitInquiry(listingId, message) {
   return Promise.resolve({ listingId, message });
 }
 
-export async function uploadRegistryDocument(listingId, file) {
-  // TODO: API 연동 필요 - POST '-'
-  // 설명: 매물 ID와 등기부등본 파일을 multipart/form-data로 전송하고 위험도 분석 완료 상태를 기대합니다.
-  return Promise.resolve({ listingId, fileName: file.name, status: 'completed' });
+export async function uploadRegistryDocument(listingId, file, metadata = {}) {
+  const formData = new FormData();
+  formData.append('file', file);
+  appendFormValue(formData, 'owner', metadata.owner ?? metadata.ownerName);
+  appendFormValue(formData, 'tenantName', metadata.tenantName);
+  appendFormValue(formData, 'address', metadata.address);
+  appendFormValue(formData, 'houseId', metadata.houseId ?? listingId);
+  appendFormValue(formData, 'userId', metadata.userId);
+  appendFormValue(formData, 'deposit', metadata.deposit);
+  appendFormValue(formData, 'leaseType', metadata.leaseType);
+  appendFormValue(formData, 'publicPrice', metadata.publicPrice);
+  appendFormValue(formData, 'price', metadata.price);
+
+  return apiRequest('/api/submissions', { method: 'POST', body: formData });
+}
+
+export async function getRegistrySubmission(submissionId) {
+  return apiRequest(`/api/submissions/${encodeURIComponent(submissionId)}`);
+}
+
+export function isRegistrySubmissionPending(submission) {
+  return pendingRegistrySubmissionStatuses.has(String(submission?.status || '').toUpperCase());
+}
+
+export function shouldRefreshListingAfterRegistrySubmission(submission) {
+  return Boolean(submission) && !isRegistrySubmissionPending(submission);
+}
+
+export async function pollRegistrySubmission(submissionId, { intervalMs = 10000, maxAttempts = 30 } = {}) {
+  let latestSubmission = null;
+
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    latestSubmission = await getRegistrySubmission(submissionId);
+    if (!isRegistrySubmissionPending(latestSubmission)) return latestSubmission;
+    if (attempt < maxAttempts - 1 && intervalMs > 0) await wait(intervalMs);
+  }
+
+  return latestSubmission;
+}
+
+export function buildRegistrySubmissionMetadata(listing, userId, metadata = {}) {
+  const owner = metadata.owner ?? metadata.ownerName ?? '';
+
+  return {
+    ...metadata,
+    owner,
+    tenantName: '김정묵',
+    address: listing?.address || '',
+    houseId: listing?.houseId || listing?.id || '',
+    userId,
+    deposit: listing?.depositAmount ?? parseManwonToWon(listing?.deposit),
+    leaseType: resolveRegistryLeaseType(listing),
+  };
+}
+
+function resolveRegistryLeaseType(listing) {
+  const contractType = listing?.contractType || listing?.dealType;
+  return registryLeaseTypes[contractType] ?? undefined;
+}
+
+function appendFormValue(formData, key, value) {
+  if (value === undefined || value === null || value === '') return;
+  formData.append(key, String(value));
+}
+
+function parseManwonToWon(value) {
+  if (typeof value === 'number') return value * 10000;
+  if (!value) return undefined;
+  const amount = Number(String(value).replace(/,/g, '').replace(/만원/g, '').trim());
+  return Number.isFinite(amount) && amount > 0 ? amount * 10000 : undefined;
+}
+
+function wait(ms) {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
 }

@@ -1,0 +1,10 @@
+.nearby-facilities { background: #fbfcfd; border: 1px solid #edf0f3; border-radius: 18px; margin-top: 14px; padding: 16px; }
+.nearby-facilities h3 { color: #191f28; font-size: 17px; margin: 0 0 14px; }
+.nearby-facilities__grid { display: grid; gap: 10px; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.nearby-facilities__item { align-items: center; background: #fff; border: 1px solid #edf0f3; border-radius: 10px; color: #191f28; display: flex; gap: 7px; min-width: 0; padding: 10px 11px; }
+.nearby-facilities__item span { flex: 0 0 auto; font-size: 16px; line-height: 1; }
+.nearby-facilities__item b { font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+@media (max-width: 420px) {
+  .nearby-facilities__grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}

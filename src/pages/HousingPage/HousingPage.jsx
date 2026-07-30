@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { RegistryAnalysisOverlay } from '../../components';
 import { useListingReviews, useListings, useResidenceVerification, useUserPreferences } from '../../hooks';
 import Sidebar from '../../sections/Sidebar';
 import Topbar from '../../sections/Topbar';
@@ -15,10 +16,12 @@ import ProfileSection from '../../sections/ProfileSection/ProfileSection';
 import OnboardingSection from '../../sections/OnboardingSection/OnboardingSection';
 import ResidenceVerificationBanner from '../../sections/ResidenceVerificationBanner';
 import RiskDiagnosisGuide from '../../sections/RiskDiagnosisGuide';
-import { createListingReview, deleteListingReview, getListingDetail, updateListingReview, uploadRegistryDocument } from '../../services';
+import { applyRegistrySubmissionToListing, buildRegistrySubmissionMetadata, createListingReview, deleteListingReview, getListingDetail, pollRegistrySubmission, shouldRefreshListingAfterRegistrySubmission, updateListingReview, uploadRegistryDocument } from '../../services';
+import { getRegistryStatus } from '../../utils/registry';
 import './HousingPage.css';
 
 const defaultFilters = { dealType: '전체', depositLimit: 15000, rentLimit: 100, roomType: '전체', walking: '전체', safety: '전체', options: { elevator: false, parking: false, cctv: false, pets: false } };
+const registryPollingOptions = { intervalMs: 10000, maxAttempts: 30 };
 
 export default function HousingPage({ isAuthenticated, userId, onRequireLogin, onLogout }) {
   const [activePage, setActivePage] = useState('home');
@@ -33,6 +36,8 @@ export default function HousingPage({ isAuthenticated, userId, onRequireLogin, o
   const [favorites, setFavorites] = useState([]);
   const [compareIds, setCompareIds] = useState([]);
   const [registryUploads, setRegistryUploads] = useState({});
+  const [registryAnalysis, setRegistryAnalysis] = useState(null);
+  const registryAnalysisTimerRef = useRef(null);
   const [onboardingMode, setOnboardingMode] = useState(null);
   const [riskGuideOpen, setRiskGuideOpen] = useState(false);
   const [filterOpen, setFilterOpen] = useState(false);
@@ -48,6 +53,10 @@ export default function HousingPage({ isAuthenticated, userId, onRequireLogin, o
     if (requiredOnboardingMode) setOnboardingMode(requiredOnboardingMode);
   }, [requiredOnboardingMode]);
 
+  useEffect(() => () => {
+    if (registryAnalysisTimerRef.current) clearTimeout(registryAnalysisTimerRef.current);
+  }, []);
+
   const openOnboarding = (mode = 'all') => setOnboardingMode(mode);
   const closeOnboarding = () => setOnboardingMode(null);
   const deferOnboarding = () => savePreferences({ onboardingDeferred: true });
@@ -57,9 +66,50 @@ export default function HousingPage({ isAuthenticated, userId, onRequireLogin, o
     setFavorites((items) => willFavorite ? [...items, id] : items.filter((item) => item !== id));
   };
   const handleCompare = (id) => setCompareIds((items) => items.includes(id) ? items.filter((item) => item !== id) : items.length < 3 ? [...items, id] : items);
-  const handleRegistryUpload = async (listingId, file) => {
-    const upload = await uploadRegistryDocument(listingId, file);
+  const handleRegistryUpload = async (listingId, file, metadata) => {
+    const listing = findListingById(listingId, [selectedListing, ...selectedBuildingListings, ...listings]);
+    const upload = await uploadRegistryDocument(listingId, file, buildRegistrySubmissionMetadata(listing || { id: listingId }, userId, metadata));
     setRegistryUploads((uploads) => ({ ...uploads, [listingId]: upload }));
+    const submissionId = getSubmissionId(upload);
+    if (submissionId) {
+      setRegistryAnalysis({ listingId, status: upload?.status || 'QUEUED' });
+      pollRegistrySubmission(submissionId, registryPollingOptions)
+        .then(async (submission) => {
+          setRegistryUploads((uploads) => ({ ...uploads, [listingId]: submission }));
+          showRegistryAnalysisResult(listingId, submission);
+          if (shouldRefreshListingAfterRegistrySubmission(submission)) await refreshAnalyzedListing(listingId, submission);
+        })
+        .catch(() => {
+          setRegistryUploads((uploads) => ({ ...uploads, [listingId]: { ...uploads[listingId], submissionId, status: 'FAILED' } }));
+          showRegistryAnalysisResult(listingId, { submissionId, status: 'FAILED' });
+        });
+    } else {
+      showRegistryAnalysisResult(listingId, upload);
+    }
+    return upload;
+  };
+  const showRegistryAnalysisResult = (listingId, submission) => {
+    const registryStatus = getRegistryStatus(submission);
+    if (registryStatus === 'NOT_UPLOADED' || registryStatus === 'PENDING') return;
+    if (registryAnalysisTimerRef.current) clearTimeout(registryAnalysisTimerRef.current);
+    setRegistryAnalysis({ listingId, status: submission?.status || registryStatus });
+    registryAnalysisTimerRef.current = setTimeout(() => {
+      setRegistryAnalysis(null);
+      registryAnalysisTimerRef.current = null;
+    }, 1400);
+  };
+  const refreshAnalyzedListing = async (listingId, submission) => {
+    try {
+      const detail = await getListingDetail(listingId);
+      const analyzedDetail = applyRegistrySubmissionToListing(detail, submission);
+      setSelectedListing((current) => String(current?.id) === String(listingId) ? analyzedDetail : current);
+      setSelectedBuildingListings((items) => items.map((item) => String(item.id) === String(listingId) ? analyzedDetail : item));
+      return analyzedDetail;
+    } catch {
+      setSelectedListing((current) => String(current?.id) === String(listingId) ? applyRegistrySubmissionToListing(current, submission) : current);
+      setSelectedBuildingListings((items) => items.map((item) => String(item.id) === String(listingId) ? applyRegistrySubmissionToListing(item, submission) : item));
+      return null;
+    }
   };
   const handleInquiry = async (listing) => {
     if (!isAuthenticated) return onRequireLogin();
@@ -160,7 +210,7 @@ export default function HousingPage({ isAuthenticated, userId, onRequireLogin, o
   const content = activePage === 'home' ? homeContent : activePage === 'favorites' ? <FavoritesSection listings={listings} favorites={favorites} compareIds={compareIds} onSelect={openDetail} onFavorite={handleFavorite} onCompare={handleCompare} registryUploads={registryUploads} onUploadRegistry={handleRegistryUpload} /> : activePage === 'market' ? <MarketAnalysis listings={listings} /> : activePage === 'checklist' ? <ChecklistSection /> : <ProfileSection preferences={preferences} onOpenBuildingSettings={() => openOnboarding('building')} onOpenBudgetSettings={() => openOnboarding('budget')} />;
 
   const isMapPanelOpen = Boolean(selectedListing || selectedBuildingListings.length);
-  return <main className="housing-page"><Sidebar activePage={activePage} hideRiskGuide={isMapPanelOpen} onNavigate={(page) => { if (!isAuthenticated && page !== 'home') return onRequireLogin(); setActivePage(page); setSelectedListing(null); setIsReviewFormOpen(false); }} onOpenRiskGuide={() => isAuthenticated ? setRiskGuideOpen(true) : onRequireLogin()} /><div className="housing-page__main">{content}</div>{!filterOpen && !isMapPanelOpen && <ChatAssistant />}{filterOpen && <FilterPanel filters={filters} onChange={handleFilterChange} onClose={() => setFilterOpen(false)} onReset={resetFilters} count={shownListings.length} />}{onboardingMode && <OnboardingSection mode={onboardingMode} preferences={preferences} onClose={closeOnboarding} onDefer={deferOnboarding} onSave={savePreferences} />}{riskGuideOpen && <RiskDiagnosisGuide onClose={() => setRiskGuideOpen(false)} onGoToFavorites={openFavoritesFromRiskGuide} />}{isReviewFormOpen && selectedListing && <ReviewFormModal listing={selectedListing} verification={residenceVerification} initialReview={editingReview} isSubmitting={isReviewSubmitting} error={reviewSubmitError} onClose={() => { setIsReviewFormOpen(false); setEditingReview(null); }} onSubmit={handleReviewSubmit} />}</main>;
+  return <main className="housing-page"><Sidebar activePage={activePage} hideRiskGuide={isMapPanelOpen} onNavigate={(page) => { if (!isAuthenticated && page !== 'home') return onRequireLogin(); setActivePage(page); setSelectedListing(null); setIsReviewFormOpen(false); }} onOpenRiskGuide={() => isAuthenticated ? setRiskGuideOpen(true) : onRequireLogin()} /><div className="housing-page__main">{content}</div>{!filterOpen && !isMapPanelOpen && <ChatAssistant />}{filterOpen && <FilterPanel filters={filters} onChange={handleFilterChange} onClose={() => setFilterOpen(false)} onReset={resetFilters} count={shownListings.length} />}{onboardingMode && <OnboardingSection mode={onboardingMode} preferences={preferences} onClose={closeOnboarding} onDefer={deferOnboarding} onSave={savePreferences} />}{riskGuideOpen && <RiskDiagnosisGuide onClose={() => setRiskGuideOpen(false)} onGoToFavorites={openFavoritesFromRiskGuide} />}{isReviewFormOpen && selectedListing && <ReviewFormModal listing={selectedListing} verification={residenceVerification} initialReview={editingReview} isSubmitting={isReviewSubmitting} error={reviewSubmitError} onClose={() => { setIsReviewFormOpen(false); setEditingReview(null); }} onSubmit={handleReviewSubmit} />}{registryAnalysis && <RegistryAnalysisOverlay status={registryAnalysis.status} />}</main>;
 }
 
 function matchesFilters(listing, filters) {
@@ -186,4 +236,12 @@ function parseMoney(value) {
   if (!value) return 0;
   if (value.includes('억')) return Number(value.replace('억', '')) * 10000;
   return Number(value.replace(/,/g, '')) || 0;
+}
+
+function findListingById(listingId, listings) {
+  return listings.find((listing) => listing && String(listing.id) === String(listingId));
+}
+
+function getSubmissionId(upload) {
+  return upload?.submissionId ?? upload?.submission_id ?? upload?.id ?? null;
 }

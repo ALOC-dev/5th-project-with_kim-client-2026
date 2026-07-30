@@ -1,7 +1,9 @@
-.map-pin { position: absolute; transform: translate(-50%, -100%); border: 0; background: transparent; color: #15b881; cursor: pointer; display: flex; flex-direction: column; align-items: center; z-index: 2; }
+.map-pin { --marker-color: #3182f6; position: absolute; transform: translate(-50%, -100%); border: 0; background: transparent; color: var(--marker-color); cursor: pointer; display: flex; flex-direction: column; align-items: center; z-index: 2; }
 .map-pin span { background: #fff; border: 2px solid currentColor; border-radius: 9px; box-shadow: 0 2px 8px rgba(16,24,40,.18); font-size: 11px; font-weight: 800; padding: 5px 10px; white-space: nowrap; }
 .map-pin i { width: 13px; height: 13px; background: currentColor; border: 2px solid #fff; border-radius: 50% 50% 50% 0; transform: rotate(-45deg); margin-top: -2px; }
-.map-pin--jeonse { color: #f59e0b; }
-.map-pin--selected { color: #fff; z-index: 4; }
-.map-pin--selected span { background: #15b881; border-color: #15b881; box-shadow: 0 4px 14px rgba(21,184,129,.45); padding: 7px 12px; }
-.map-pin--selected i { color: #15b881; }
+.map-pin--monthly { --marker-color: #3182f6; }
+.map-pin--jeonse { --marker-color: #f59e0b; }
+.map-pin--selected { z-index: 4; }
+.map-pin--selected span { background: var(--marker-color); border-color: var(--marker-color); box-shadow: 0 4px 14px rgba(49,130,246,.38); color: #fff; padding: 7px 12px; }
+.map-pin--selected.map-pin--jeonse span { box-shadow: 0 4px 14px rgba(245,158,11,.4); }
+.map-pin--selected i { color: var(--marker-color); }

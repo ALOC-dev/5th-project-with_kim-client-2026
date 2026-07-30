@@ -4,6 +4,10 @@ import './KakaoMap.css';
 const SDK_ID = 'kakao-map-sdk';
 const CAMPUS_CENTER = { lat: 37.5838, lng: 127.0587 };
 const CAMPUS_AREA_RADIUS_METERS = 650;
+const MARKER_COLORS = {
+  monthly: '#3182f6',
+  jeonse: '#f59e0b',
+};
 
 function getCoordinateKey(latitude, longitude) {
   return `${latitude.toFixed(6)},${longitude.toFixed(6)}`;
@@ -51,8 +55,8 @@ function loadKakaoMapSdk() {
   });
 }
 
-function createHomeMarker(maps, position, title) {
-  const markerSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="34" height="42" viewBox="0 0 42 52"><path fill="#3182f6" d="M21 1C10 1 1 9.9 1 21c0 15.1 20 30 20 30s20-14.9 20-30C41 9.9 32 1 21 1Z"/><circle cx="21" cy="21" r="13" fill="white"/><path d="m13.5 21 7.5-6.2 7.5 6.2v8.2a1.7 1.7 0 0 1-1.7 1.7H15.2a1.7 1.7 0 0 1-1.7-1.7V21Z" fill="none" stroke="#3182f6" stroke-linejoin="round" stroke-width="2.4"/><path d="M18.5 30.5v-5h5v5" fill="none" stroke="#3182f6" stroke-linejoin="round" stroke-width="2.4"/></svg>`;
+function createHomeMarker(maps, position, title, markerColor) {
+  const markerSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="34" height="42" viewBox="0 0 42 52"><path fill="${markerColor}" d="M21 1C10 1 1 9.9 1 21c0 15.1 20 30 20 30s20-14.9 20-30C41 9.9 32 1 21 1Z"/><circle cx="21" cy="21" r="13" fill="white"/><path d="m13.5 21 7.5-6.2 7.5 6.2v8.2a1.7 1.7 0 0 1-1.7 1.7H15.2a1.7 1.7 0 0 1-1.7-1.7V21Z" fill="none" stroke="${markerColor}" stroke-linejoin="round" stroke-width="2.4"/><path d="M18.5 30.5v-5h5v5" fill="none" stroke="${markerColor}" stroke-linejoin="round" stroke-width="2.4"/></svg>`;
   const image = new maps.MarkerImage(
     `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(markerSvg)}`,
     new maps.Size(34, 42),
@@ -76,11 +80,23 @@ function getBuildingGroupLabel(listings) {
   return `매물 ${listings.length}개`;
 }
 
+export function getListingMarkerToneClass(listings) {
+  const hasMonthly = listings.some((listing) => listing.dealType === '월세');
+  const hasJeonse = listings.some((listing) => listing.dealType === '전세');
+
+  return hasJeonse && !hasMonthly ? 'is-jeonse' : 'is-monthly';
+}
+
+export function getListingMarkerColor(listings) {
+  return getListingMarkerToneClass(listings) === 'is-jeonse' ? MARKER_COLORS.jeonse : MARKER_COLORS.monthly;
+}
+
 function createListingPriceOverlay(maps, position, listings, onSelect, onSelectBuilding) {
   const isBuildingGroup = listings.length > 1;
   const listing = listings[0];
+  const dealToneClass = getListingMarkerToneClass(listings);
   const element = document.createElement('button');
-  element.className = `kakao-map__listing-price ${isBuildingGroup ? 'is-building-group' : listing.dealType === '전세' ? 'is-jeonse' : ''}`;
+  element.className = `kakao-map__listing-price ${dealToneClass} ${isBuildingGroup ? 'is-building-group' : ''}`;
   element.type = 'button';
   element.textContent = isBuildingGroup ? getBuildingGroupLabel(listings) : getListingPriceLabel(listing);
   element.addEventListener('click', () => {
@@ -198,7 +214,7 @@ export default function KakaoMap({ listings = [], onSelect, onSelectBuilding }) 
               const [{ latitude, longitude }] = group;
               const buildingListings = group.map(({ listing }) => listing);
               const position = new maps.LatLng(latitude, longitude);
-              const marker = createHomeMarker(maps, position, buildingListings[0].title);
+              const marker = createHomeMarker(maps, position, buildingListings[0].title, getListingMarkerColor(buildingListings));
               const handleSelect = () => {
                 if (buildingListings.length > 1) onSelectBuildingRef.current(buildingListings);
                 else onSelectRef.current(buildingListings[0]);

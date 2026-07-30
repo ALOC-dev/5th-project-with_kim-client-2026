@@ -27,3 +27,10 @@ test('모바일 드래그 핸들을 아래로 끌면 같은 건물 매물 패널
 
   expect(onClose).toHaveBeenCalledTimes(1);
 });
+
+test('같은 건물 전세 매물 가격은 월 0 없이 전세금으로 보여준다', () => {
+  render(<BuildingListingsPanel listings={[{ ...listings[0], dealType: '전세', deposit: '13000', rent: '0' }]} onClose={jest.fn()} onSelect={jest.fn()} />);
+
+  expect(screen.getByText('전세금 13,000만원')).toBeInTheDocument();
+  expect(screen.queryByText(/월 0/)).not.toBeInTheDocument();
+});

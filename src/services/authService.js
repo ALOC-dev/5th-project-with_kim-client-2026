@@ -14,6 +14,18 @@ export function startKakaoLogin() {
   window.location.assign(getKakaoLoginStartUrl());
 }
 
+export async function loginBusinessUser(credentials) {
+  // TODO: API 연동 필요 - POST '-'
+  // 설명: 공인중개사 아이디/비밀번호를 보내고 사업자용 accessToken, refreshToken, tokenType 응답을 기대합니다.
+  throw new Error('Business login API is not configured');
+}
+
+export async function requestBrokerSignup(formData) {
+  // TODO: API 연동 필요 - POST '-'
+  // 설명: 중개사무소 소재지, 사업자 아이디/비밀번호, 공인중개사 자격증 파일을 multipart/form-data로 보내는 가입 신청 응답을 기대합니다.
+  throw new Error('Broker signup API is not configured');
+}
+
 export async function exchangeKakaoCode(code) {
   const response = await fetch(`${API_BASE_URL}/api/auth/login/kakao?code=${encodeURIComponent(code)}`);
   if (!response.ok) throw new Error('Kakao login failed');
