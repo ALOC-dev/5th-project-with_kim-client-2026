@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import App from './App.jsx';
-import { exchangeKakaoCode, getAuthorizationHeader, getKakaoLoginStartUrl } from './services';
+import { exchangeKakaoCode, getAuthorizationHeader, getCurrentUsername, getKakaoLoginStartUrl } from './services';
 
 test('renders the Kakao login start page', async () => {
   window.history.replaceState({}, '', '/login');
@@ -50,6 +50,7 @@ test('stores tokens returned from the Spring Boot Kakao login response', async (
     ok: true,
     json: async () => ({
       id: 1,
+      username: '김정묵',
       accessToken: 'access-token',
       refreshToken: 'refresh-token',
       TokenType: 'Bearer',
@@ -60,5 +61,7 @@ test('stores tokens returned from the Spring Boot Kakao login response', async (
 
   expect(global.fetch).toHaveBeenCalledWith('https://www.sibang.site/api/auth/login/kakao?code=kakao-code');
   expect(localStorage.getItem('sibang.tokenType')).toBe('Bearer');
+  expect(localStorage.getItem('sibang.username')).toBe('김정묵');
+  expect(getCurrentUsername()).toBe('김정묵');
   expect(getAuthorizationHeader()).toEqual({ Authorization: 'Bearer access-token' });
 });

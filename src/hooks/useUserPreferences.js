@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { defaultUserPreferences } from '../constants/preferences';
-import { updateUserPreferences } from '../services';
+import { getUserProfile, updateUserPreferences } from '../services';
 
 function getStorageKey(userId) {
   return `sibang.user-preferences.${userId}`;
@@ -31,8 +31,25 @@ export function useUserPreferences(userId, isAuthenticated) {
   const [preferences, setPreferences] = useState(() => readPreferences(userId));
 
   useEffect(() => {
-    setPreferences(readPreferences(userId));
-  }, [userId]);
+    let active = true;
+    const localPreferences = readPreferences(userId);
+    setPreferences(localPreferences);
+
+    if (!userId || !isAuthenticated) return () => { active = false; };
+
+    getUserProfile()
+      .then((profile) => {
+        if (!active || !profile) return;
+        const nextPreferences = mergeUserPreferences(localPreferences, profile);
+        setPreferences(nextPreferences);
+        window.localStorage.setItem(getStorageKey(userId), JSON.stringify(nextPreferences));
+      })
+      .catch(() => {
+        // Keep the locally saved preferences when the profile API is unavailable.
+      });
+
+    return () => { active = false; };
+  }, [userId, isAuthenticated]);
 
   const savePreferences = async (changes) => {
     const nextPreferences = { ...preferences, ...changes };
@@ -51,4 +68,8 @@ export function useUserPreferences(userId, isAuthenticated) {
     savePreferences,
     requiredOnboardingMode: isAuthenticated && !preferences.onboardingDeferred ? getRequiredOnboardingMode(preferences) : null,
   };
+}
+
+export function mergeUserPreferences(localPreferences, remotePreferences) {
+  return { ...defaultUserPreferences, ...localPreferences, ...remotePreferences };
 }

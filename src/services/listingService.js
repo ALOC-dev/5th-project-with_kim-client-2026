@@ -1,4 +1,5 @@
 import { apiRequest } from './apiClient';
+import { getCurrentUsername } from './authService';
 
 const fallbackPositions = [
   { left: '30%', top: '28%' }, { left: '57%', top: '50%' }, { left: '24%', top: '56%' },
@@ -63,6 +64,7 @@ export function mapHouseToListing(house, index = 0) {
     roomType,
     direction,
     metadata: house.metadata ?? null,
+    facilities: house.facilities ?? house.nearbyFacilities ?? house.metadata?.facilities ?? [],
     features: [direction, house.toilet ? `화장실 ${house.toilet}개` : null].filter(Boolean),
     reviews: 0,
     rating: 0,
@@ -195,13 +197,42 @@ export async function getListingDetail(listingId) {
   return mapHouseToListing(response);
 }
 
-export async function toggleFavorite(listingId, isFavorite) {
-  if (isFavorite) return apiRequest(`/api/wishlist/${listingId}`, { method: 'POST' });
+export async function toggleFavorite(listingId, shouldFavorite) {
+  if (shouldFavorite) return apiRequest(`/api/wishlist/${listingId}`, { method: 'POST' });
   return apiRequest(`/api/wishlist/${listingId}`, { method: 'DELETE' });
 }
 
 export async function getMyWishList() {
-  return apiRequest('/api/wishlist/my');
+  const response = await apiRequest('/api/wishlist/my');
+  const wishlistItems = normalizeWishListResponse(response);
+  const listings = await Promise.all(wishlistItems.map(async (item, index) => {
+    const house = getWishListHouse(item);
+    if (hasHousePayload(house)) return mapHouseToListing(house, index);
+    const houseId = getWishListHouseId(item);
+    return houseId ? getListingDetail(houseId) : null;
+  }));
+  return listings.filter(Boolean);
+}
+
+function normalizeWishListResponse(response) {
+  if (Array.isArray(response)) return response;
+  if (Array.isArray(response?.content)) return response.content;
+  if (Array.isArray(response?.items)) return response.items;
+  if (Array.isArray(response?.data)) return response.data;
+  return [];
+}
+
+function getWishListHouse(item) {
+  return item?.house || item?.houseResponse || item?.houseDto || item;
+}
+
+function hasHousePayload(house) {
+  return Boolean(house && typeof house === 'object' && (house.address || house.contractType || house.deposit !== undefined || house.monthlyRent !== undefined));
+}
+
+function getWishListHouseId(item) {
+  if (typeof item === 'string' || typeof item === 'number') return item;
+  return item?.houseId ?? item?.house?.houseId ?? item?.houseResponse?.houseId ?? item?.houseDto?.houseId ?? item?.id ?? null;
 }
 
 export async function submitInquiry(listingId, message) {
@@ -252,11 +283,12 @@ export async function pollRegistrySubmission(submissionId, { intervalMs = 10000,
 
 export function buildRegistrySubmissionMetadata(listing, userId, metadata = {}) {
   const owner = metadata.owner ?? metadata.ownerName ?? '';
+  const tenantName = metadata.tenantName ?? getCurrentUsername() ?? '';
 
   return {
     ...metadata,
     owner,
-    tenantName: '김정묵',
+    tenantName,
     address: listing?.address || '',
     houseId: listing?.houseId || listing?.id || '',
     userId,

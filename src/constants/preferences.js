@@ -14,9 +14,12 @@ export const defaultUserPreferences = {
   hasSecondaryClassBuilding: false,
   maxDeposit: 1000,
   maxMonthlyRent: 50,
+  leaseTypes: ['MONTHLY'],
   budgetConfigured: false,
   onboardingCompleted: false,
   onboardingDeferred: false,
+  conditionListingAlert: true,
+  wishPriceChangeAlert: true,
 };
 
 export const depositOptions = [500, 1000, 2000, null];

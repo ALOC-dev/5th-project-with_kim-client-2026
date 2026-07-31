@@ -17,6 +17,8 @@ export default function ListingPreview({ listing, reviews, averageRating, isRevi
   const price = formatListingPrice(listing);
   const isJeonse = listing.dealType === '전세';
   const registryStatus = getRegistryStatus(registryUpload || listing.registryUpload);
+  const safetyLevel = getSafetyLevelLabel(listing);
+  const photoSafetyLabel = isLocked ? '로그인 필요' : registryStatus === 'ANALYZED' ? safetyLevel : '분석 전';
   const dragStartY = useRef(null);
   const dragStartOffset = useRef(0);
   const sheetOffsetRef = useRef(0);
@@ -59,7 +61,7 @@ export default function ListingPreview({ listing, reviews, averageRating, isRevi
     <div className="listing-preview__photo">
       <span>{listing.title.slice(0, 1)}</span>
       <button className="listing-preview__back" onClick={onClose} aria-label="이전 화면으로 돌아가기"><Icon name="back" size={20} /></button>
-      <StatusBadge>{listing.safetyScore ? `안전 ${listing.safetyScore}` : '분석 전'}</StatusBadge>
+      <StatusBadge>{photoSafetyLabel}</StatusBadge>
     </div>
 
     <div className="listing-preview__body">
@@ -128,20 +130,85 @@ function ReviewSummary({ reviews, averageRating, isLoading, error, currentUserId
 }
 
 function SafetyScore({ listing, isJeonse, registryStatus }) {
-  const safetyScore = Number(listing.safetyScore) || 0;
   const isPending = registryStatus !== 'ANALYZED';
-  const metrics = [
-    { label: '시세 적정성', value: Math.min(10, Math.round(safetyScore + 1)), tone: 'green' },
-    { label: isJeonse ? '등기부 안전' : '계약 안전', value: listing.risk.mortgage === '없음' ? 10 : 7, tone: 'green' },
-    { label: '치안', value: Math.min(10, Math.round(safetyScore)), tone: 'blue' },
-  ];
+  const safetyLevel = isPending ? '미확인' : getSafetyLevelLabel(listing);
   const resultText = getRegistrySafetyResultText(registryStatus, listing, isJeonse);
+  const guideItems = getSafetyGuideItems(listing, isJeonse);
 
   return <section className={`listing-preview__safety ${isPending ? 'is-pending' : ''}`}>
-    <header><strong>{safetyScore.toFixed(1)}</strong><div><b>안전 점수</b><span>시세·등기부·치안·교통 종합 분석</span></div></header>
-    {registryStatus === 'ANALYZED' && <div className="listing-preview__safety-metrics">{metrics.map((metric) => <div key={metric.label}><p><span>{metric.label}</span><b>{metric.value}</b></p><i className={`is-${metric.tone}`}><em style={{ width: `${metric.value * 10}%` }} /></i></div>)}</div>}
+    <header><strong>{safetyLevel}</strong><div><b>안전 점수</b><span>시세·등기부·치안·교통 종합 분석</span></div></header>
+    {registryStatus === 'ANALYZED' && <div className="listing-preview__safety-guides">{guideItems.map((item) => <p key={item.label}><b>{item.label}</b><span>{item.description}</span></p>)}</div>}
     <p className="listing-preview__safety-result"><Icon name={isPending ? 'shield' : 'check'} size={16} />{resultText}</p>
   </section>;
+}
+
+function getSafetyGuideItems(listing, isJeonse) {
+  const scores = getInternalSafetyScores(listing);
+  return [
+    { label: '시세 적정성', description: getMarketSafetyGuide(scores.market) },
+    { label: '등기부', description: getRegistrySafetyGuide(scores.registry, listing, isJeonse) },
+    { label: '치안', description: getSecuritySafetyGuide(scores.security) },
+  ];
+}
+
+function getInternalSafetyScores(listing) {
+  return {
+    market: getScoreOrDefault(listing.marketSafetyScore ?? listing.marketScore, 10),
+    registry: getScoreOrDefault(listing.registrySafetyScore ?? listing.registryScore, getRegistryScoreFromRisk(listing)),
+    security: getScoreOrDefault(listing.securitySafetyScore ?? listing.securityScore ?? listing.crimeScore, 10),
+  };
+}
+
+function getScoreOrDefault(value, defaultValue) {
+  const score = Number(value);
+  return Number.isFinite(score) ? score : defaultValue;
+}
+
+function getRegistryScoreFromRisk(listing) {
+  if (listing.risk?.mortgage === '없음') return 10;
+  const mortgageAmount = parseKoreanManwonAmount(listing.risk?.mortgage);
+  if (mortgageAmount) return Math.max(0, Math.min(10, mortgageAmount / 1000));
+  return 7;
+}
+
+function parseKoreanManwonAmount(value) {
+  if (!value || value === '미확인') return 0;
+  const amount = Number(String(value).replace(/[^0-9.]/g, ''));
+  return Number.isFinite(amount) ? amount : 0;
+}
+
+function getMarketSafetyGuide(score) {
+  if (score < 6) return '주변 시세나 공시가격보다 조건이 높은 편인지 다시 확인해 보세요.';
+  if (score < 8) return '비슷한 매물 2~3개와 보증금, 월세, 관리비를 함께 비교해 보세요.';
+  return '현재는 안전한 범위로 가정했어요. 실제 시세 점수가 들어오면 주변 시세와 공시가격 차이를 기준으로 안내할게요.';
+}
+
+function getRegistrySafetyGuide(score, listing, isJeonse) {
+  const ratioLabel = isJeonse ? '전세가율' : '보증금 비율';
+  const ratioValue = listing.risk?.ratio || '미확인';
+  const mortgageValue = listing.risk?.mortgage || '미확인';
+  if (score < 6) {
+    return `${ratioLabel}이 ${ratioValue}이고 근저당 ${mortgageValue}이 확인됐어요. 이 내용만 보고 판단하기보다 계약 전 말소 조건, 선순위 권리, 보증보험 가능 여부도 함께 확인하는 게 좋아요.`;
+  }
+  if (score < 8) return `${ratioLabel}이 ${ratioValue}예요. 등기부에서 확인할 부분이 있으니 소유자 일치와 근저당 말소 조건을 계약서에 남기는 게 좋아요.`;
+  return `${ratioLabel}이 ${ratioValue}예요. 등기부 위험 신호는 낮게 봤지만, 계약 전 등기부 원본과 소유자 일치는 다시 확인해 주세요.`;
+}
+
+function getSecuritySafetyGuide(score) {
+  if (score < 6) return '야간 이동 동선, CCTV, 골목 밝기, 주변 치안 시설을 직접 확인해 보세요.';
+  if (score < 8) return '낮과 밤의 주변 분위기가 다를 수 있어 귀가 시간대 동선을 확인해 보세요.';
+  return '현재는 안전한 범위로 가정했어요. 실제 치안 점수가 들어오면 야간 이동과 주변 안전 정보를 함께 안내할게요.';
+}
+
+function getSafetyLevelLabel(listing) {
+  if (listing.risk?.level && listing.risk.level !== '미확인') return listing.risk.level;
+  const score = Number(listing.safetyScore);
+  if (!Number.isFinite(score) || score <= 0) return '분석 전';
+  if (score < 20) return '매우 위험';
+  if (score < 40) return '위험';
+  if (score < 60) return '주의';
+  if (score < 80) return '양호';
+  return '안전';
 }
 
 function RiskCard({ listing, registryStatus, canUpload, onOpenGuide }) {
