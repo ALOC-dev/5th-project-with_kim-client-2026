@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { RegistryAnalysisOverlay } from '../../components';
-import { useListingReviews, useListings, useResidenceVerification, useUserPreferences } from '../../hooks';
+import { canAutoOpenResidenceVerification, useListingReviews, useListings, useResidenceVerification, useUserPreferences } from '../../hooks';
 import Sidebar from '../../sections/Sidebar';
 import Topbar from '../../sections/Topbar';
 import MapExplorer from '../../sections/MapExplorer';
@@ -63,8 +63,16 @@ export default function HousingPage({ isAuthenticated, userId, username, onRequi
       setIsResidenceVerificationOpen(false);
       return;
     }
-    if (residenceVerification?.shouldAutoOpen) setIsResidenceVerificationOpen(true);
-  }, [isAuthenticated, residenceVerification?.shouldAutoOpen]);
+    if (canAutoOpenResidenceVerification({
+      isAuthenticated,
+      requiredOnboardingMode,
+      onboardingMode,
+      shouldAutoOpen: residenceVerification?.shouldAutoOpen,
+      status: residenceVerification?.status,
+    })) {
+      setIsResidenceVerificationOpen(true);
+    }
+  }, [isAuthenticated, requiredOnboardingMode, onboardingMode, residenceVerification?.shouldAutoOpen, residenceVerification?.status]);
 
   useEffect(() => {
     let active = true;
@@ -268,11 +276,9 @@ export default function HousingPage({ isAuthenticated, userId, username, onRequi
     if (!isAuthenticated) return onRequireLogin();
     setIsResidenceVerificationOpen(true);
   };
-  const deferResidenceVerification = () => {
-    residenceVerification?.deferVerification();
-    setIsResidenceVerificationOpen(false);
-  };
+  const deferResidenceVerification = async () => residenceVerification?.deferVerification();
   const completeResidenceVerification = (history) => residenceVerification?.completeVerification(history);
+  const uploadResidenceVerificationDocument = (file) => residenceVerification?.uploadVerification(file);
   const openFavoritesFromRiskGuide = () => {
     setRiskGuideOpen(false);
     setActivePage('favorites');
@@ -287,7 +293,7 @@ export default function HousingPage({ isAuthenticated, userId, username, onRequi
   const content = activePage === 'home' ? homeContent : activePage === 'favorites' ? <FavoritesSection listings={favoriteListings} favorites={favorites} isLoading={isFavoritesLoading} error={favoritesError} compareIds={compareIds} onSelect={openDetail} onFavorite={handleFavorite} onCompare={handleCompare} registryUploads={registryUploads} onUploadRegistry={handleRegistryUpload} /> : activePage === 'market' ? <MarketAnalysis listings={listings} /> : activePage === 'checklist' ? <ChecklistSection /> : <ProfileSection preferences={preferences} username={username} onOpenBuildingSettings={() => openOnboarding('building')} onOpenBudgetSettings={() => openOnboarding('budget')} onSavePreferences={savePreferences} />;
 
   const isMapPanelOpen = Boolean(selectedListing || selectedBuildingListings.length);
-  return <main className="housing-page"><Sidebar activePage={activePage} hideRiskGuide={isMapPanelOpen} onNavigate={(page) => { if (!isAuthenticated && page !== 'home') return onRequireLogin(); setActivePage(page); setSelectedListing(null); setIsReviewFormOpen(false); }} onOpenRiskGuide={() => isAuthenticated ? setRiskGuideOpen(true) : onRequireLogin()} /><div className="housing-page__main">{content}</div>{!filterOpen && !isMapPanelOpen && <ChatAssistant />}{filterOpen && <FilterPanel filters={filters} onChange={handleFilterChange} onClose={() => setFilterOpen(false)} onReset={resetFilters} count={shownListings.length} />}{onboardingMode && <OnboardingSection mode={onboardingMode} preferences={preferences} onClose={closeOnboarding} onDefer={deferOnboarding} onSave={savePreferences} />}{riskGuideOpen && <RiskDiagnosisGuide onClose={() => setRiskGuideOpen(false)} onGoToFavorites={openFavoritesFromRiskGuide} />}{isReviewFormOpen && selectedListing && <ReviewFormModal listing={selectedListing} verification={residenceVerification} initialReview={editingReview} isSubmitting={isReviewSubmitting} error={reviewSubmitError} onClose={() => { setIsReviewFormOpen(false); setEditingReview(null); }} onSubmit={handleReviewSubmit} />}{isResidenceVerificationOpen && <ResidenceVerificationModal verification={residenceVerification} onClose={() => setIsResidenceVerificationOpen(false)} onDefer={deferResidenceVerification} onComplete={completeResidenceVerification} />}{registryAnalysis && <RegistryAnalysisOverlay status={registryAnalysis.status} />}</main>;
+  return <main className="housing-page"><Sidebar activePage={activePage} hideRiskGuide={isMapPanelOpen} onNavigate={(page) => { if (!isAuthenticated && page !== 'home') return onRequireLogin(); setActivePage(page); setSelectedListing(null); setIsReviewFormOpen(false); }} onOpenRiskGuide={() => isAuthenticated ? setRiskGuideOpen(true) : onRequireLogin()} /><div className="housing-page__main">{content}</div>{!filterOpen && !isMapPanelOpen && <ChatAssistant />}{filterOpen && <FilterPanel filters={filters} onChange={handleFilterChange} onClose={() => setFilterOpen(false)} onReset={resetFilters} count={shownListings.length} />}{onboardingMode && <OnboardingSection mode={onboardingMode} preferences={preferences} onClose={closeOnboarding} onDefer={deferOnboarding} onSave={savePreferences} />}{riskGuideOpen && <RiskDiagnosisGuide onClose={() => setRiskGuideOpen(false)} onGoToFavorites={openFavoritesFromRiskGuide} />}{isReviewFormOpen && selectedListing && <ReviewFormModal listing={selectedListing} verification={residenceVerification} initialReview={editingReview} isSubmitting={isReviewSubmitting} error={reviewSubmitError} onClose={() => { setIsReviewFormOpen(false); setEditingReview(null); }} onSubmit={handleReviewSubmit} />}{isResidenceVerificationOpen && <ResidenceVerificationModal verification={residenceVerification} onClose={() => setIsResidenceVerificationOpen(false)} onDefer={deferResidenceVerification} onComplete={completeResidenceVerification} onUpload={uploadResidenceVerificationDocument} />}{registryAnalysis && <RegistryAnalysisOverlay status={registryAnalysis.status} />}</main>;
 }
 
 function matchesFilters(listing, filters) {

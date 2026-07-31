@@ -88,10 +88,63 @@ function firstBoolean(...values) {
 }
 
 export async function getResidenceVerification() {
-  // TODO: API 연동 필요 - GET '-'
-  // 설명: 로그인 사용자의 실거주 인증 여부, 인증 주소·거주 이력, 리뷰 혜택 문구를 반환하는 응답이 필요합니다.
-  // 인증 API가 연결되기 전에는 완료 상태를 추정하지 않습니다.
-  return Promise.resolve(null);
+  return apiRequest('/api/residence-verifications');
+}
+
+export async function uploadResidenceVerification(file) {
+  const formData = new FormData();
+  formData.append('file', file);
+  return apiRequest('/api/residence-verifications', { method: 'POST', body: formData });
+}
+
+export async function deferResidenceVerification() {
+  return apiRequest('/api/residence-verifications/defer', { method: 'PATCH' });
+}
+
+export function normalizeResidenceVerification(response) {
+  const source = response?.data && typeof response.data === 'object' ? response.data : response || {};
+  const historySource = source.addresses
+    ?? source.history
+    ?? source.residenceHistory
+    ?? source.residenceHistories
+    ?? source.records;
+  const history = Array.isArray(historySource) ? historySource.map(normalizeResidenceHistory).filter((item) => item.address) : [];
+  const status = source.status == null ? null : String(source.status).toUpperCase();
+  const result = {
+    status,
+    uploadedAt: source.uploadedAt ?? null,
+    error: source.error ?? null,
+    addresses: Array.isArray(source.addresses) ? source.addresses : [],
+  };
+
+  if (typeof source.isVerified === 'boolean') result.isVerified = source.isVerified;
+  else if (typeof source.verified === 'boolean') result.isVerified = source.verified;
+  else if (result.status) result.isVerified = result.status === 'COMPLETED';
+  if (typeof source.isDeferred === 'boolean') result.isDeferred = source.isDeferred;
+  if (history.length) {
+    result.history = history;
+    result.address = history.find((item) => item.current)?.address || history[0].address;
+  } else {
+    result.history = [];
+  }
+  if (typeof source.address === 'string') result.address = source.address;
+  if (typeof source.rewardMessage === 'string') result.rewardMessage = source.rewardMessage;
+  return result;
+}
+
+function normalizeResidenceHistory(item) {
+  if (typeof item === 'string') return { address: item, period: '', current: false };
+  const address = item?.roadAddress || item?.jibunAddress || item?.rawAddress || item?.address || '';
+  const years = Array.isArray(item?.residenceYears) ? item.residenceYears.join(' · ') : '';
+  const start = item?.startYear ?? item?.fromYear ?? item?.startDate;
+  const end = item?.endYear ?? item?.toYear ?? item?.endDate;
+  const period = item?.period || years || (start || end ? `${start || ''}~${end || '현재'}` : '');
+  return {
+    ...item,
+    address,
+    period,
+    current: Boolean(item?.current ?? item?.isCurrent ?? item?.present),
+  };
 }
 
 export async function updateUserPreferences(preferences) {
