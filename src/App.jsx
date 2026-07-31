@@ -1,12 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import HousingPage from './pages/HousingPage';
 import LoginPage from './pages/LoginPage';
-import { exchangeKakaoCode, getCurrentUserId, hasAccessToken, logout } from './services';
+import { exchangeKakaoCode, getCurrentUserId, getCurrentUsername, hasAccessToken, logout } from './services';
 
 export default function App() {
   const [isCheckingSession, setIsCheckingSession] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(hasAccessToken());
   const [userId, setUserId] = useState(getCurrentUserId());
+  const [username, setUsername] = useState(getCurrentUsername());
   const [authError, setAuthError] = useState('');
   const [pathname, setPathname] = useState(window.location.pathname);
   const processedAuthorizationCode = useRef(false);
@@ -26,6 +27,7 @@ export default function App() {
           const loginResponse = await exchangeKakaoCode(code);
           setIsAuthenticated(true);
           setUserId(String(loginResponse.id));
+          setUsername(loginResponse.username || getCurrentUsername());
           window.history.replaceState({}, document.title, '/');
           setPathname('/');
         } catch (error) {
@@ -47,10 +49,11 @@ export default function App() {
     await logout();
     setIsAuthenticated(false);
     setUserId(null);
+    setUsername(null);
     navigate('/');
   };
 
   if (isCheckingSession) return <main className="app-loading">로그인 정보를 확인하고 있어요.</main>;
   if (pathname === '/login') return <LoginPage authError={authError} />;
-  return <HousingPage isAuthenticated={isAuthenticated} userId={userId} onRequireLogin={() => navigate('/login')} onLogout={handleLogout} />;
+  return <HousingPage isAuthenticated={isAuthenticated} userId={userId} username={username} onRequireLogin={() => navigate('/login')} onLogout={handleLogout} />;
 }

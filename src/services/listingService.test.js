@@ -1,4 +1,4 @@
-import { applyRegistrySubmissionToListing, buildHouseSearchParams, buildRegistrySubmissionMetadata, getListingDetail, getListings, getRegistrySubmission, isRegistrySubmissionPending, pollRegistrySubmission, shouldRefreshListingAfterRegistrySubmission, uploadRegistryDocument } from './listingService';
+import { applyRegistrySubmissionToListing, buildHouseSearchParams, buildRegistrySubmissionMetadata, getListingDetail, getListings, getMyWishList, getRegistrySubmission, isRegistrySubmissionPending, pollRegistrySubmission, shouldRefreshListingAfterRegistrySubmission, toggleFavorite, uploadRegistryDocument } from './listingService';
 
 test('loads the first 30 houses through the deployed house search API', async () => {
   global.fetch = jest.fn().mockResolvedValue({
@@ -63,6 +63,81 @@ test('loads a selected listing through its house detail endpoint', async () => {
   });
 });
 
+test('adds and removes a wishlist house through wishlist endpoints', async () => {
+  global.fetch = jest.fn()
+    .mockResolvedValueOnce({ ok: true, status: 204, json: async () => null })
+    .mockResolvedValueOnce({ ok: true, status: 204, json: async () => null });
+
+  await toggleFavorite('7', true);
+  await toggleFavorite('7', false);
+
+  expect(global.fetch).toHaveBeenNthCalledWith(1, 'https://www.sibang.site/api/wishlist/7', expect.objectContaining({ method: 'POST' }));
+  expect(global.fetch).toHaveBeenNthCalledWith(2, 'https://www.sibang.site/api/wishlist/7', expect.objectContaining({ method: 'DELETE' }));
+});
+
+test('loads my wishlist and maps the returned houses into listings', async () => {
+  global.fetch = jest.fn().mockResolvedValue({
+    ok: true,
+    status: 200,
+    json: async () => ({
+      content: [
+        {
+          house: {
+            houseId: 7,
+            address: '서울 동대문구 전농동 295-1',
+            deposit: 5000000,
+            monthlyRent: 550000,
+            managementFee: 60000,
+            contractType: 'MONTHLY',
+            direction: 'SOUTH',
+            roomNumber: 1,
+            area: 24.2,
+            floor: 3,
+          },
+        },
+      ],
+    }),
+  });
+
+  const wishlist = await getMyWishList();
+
+  expect(global.fetch).toHaveBeenCalledWith('https://www.sibang.site/api/wishlist/my', expect.objectContaining({ method: 'GET' }));
+  expect(wishlist).toHaveLength(1);
+  expect(wishlist[0]).toMatchObject({
+    id: '7',
+    title: '서울 동대문구 전농동 295-1',
+    dealType: '월세',
+    deposit: '500',
+    rent: '55',
+  });
+});
+
+test('loads wishlist house details when the wishlist response only contains house ids', async () => {
+  global.fetch = jest.fn()
+    .mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => ({ content: [{ houseId: 7 }] }),
+    })
+    .mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        houseId: 7,
+        address: '서울 동대문구 전농동 295-1',
+        deposit: 5000000,
+        monthlyRent: 550000,
+        contractType: 'MONTHLY',
+      }),
+    });
+
+  const wishlist = await getMyWishList();
+
+  expect(global.fetch).toHaveBeenNthCalledWith(1, 'https://www.sibang.site/api/wishlist/my', expect.objectContaining({ method: 'GET' }));
+  expect(global.fetch).toHaveBeenNthCalledWith(2, 'https://www.sibang.site/api/houses/7', expect.objectContaining({ method: 'GET' }));
+  expect(wishlist[0]).toMatchObject({ id: '7', dealType: '월세', deposit: '500', rent: '55' });
+});
+
 test('applies analyzed registry submission values to a listing', () => {
   const listing = {
     id: '7',
@@ -108,6 +183,7 @@ test('derives five risk levels from the registry risk score', () => {
 });
 
 test('builds registry submission metadata from the selected listing and logged-in user', () => {
+  localStorage.setItem('sibang.username', '정수민');
   const metadata = buildRegistrySubmissionMetadata(
     { id: '7', houseId: '7', address: '서울 동대문구 전농동 295-1', deposit: '500', depositAmount: 5000000, contractType: 'MONTHLY' },
     '3',
@@ -117,7 +193,7 @@ test('builds registry submission metadata from the selected listing and logged-i
   expect(metadata).toEqual({
     ownerName: '김철수',
     owner: '김철수',
-    tenantName: '김정묵',
+    tenantName: '정수민',
     address: '서울 동대문구 전농동 295-1',
     houseId: '7',
     userId: '3',

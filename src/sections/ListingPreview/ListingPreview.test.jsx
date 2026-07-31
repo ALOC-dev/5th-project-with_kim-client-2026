@@ -141,7 +141,7 @@ test('등기부등본 업로드 전에는 위험도를 미확인 상태로 잠�
 
   expect(screen.getByText('전세 사기 위험도')).toBeInTheDocument();
   expect(screen.getByText('등기부: 업로드 전 · 미확인')).toBeInTheDocument();
-  expect(screen.getByText('미확인')).toBeInTheDocument();
+  expect(screen.getAllByText('미확인').length).toBeGreaterThan(0);
   expect(screen.getByText('등기부등본 업로드하고 위험도 확인하기')).toBeInTheDocument();
   expect(screen.getByText('근저당권').closest('section')).toHaveClass('is-pending');
 });
@@ -166,7 +166,8 @@ test('월세 매물도 등기부등본 업로드 전이면 안전 점수를 미�
   );
 
   expect(screen.getByText('등기부: 업로드 전 · 미확인')).toBeInTheDocument();
-  expect(screen.getByText('0.0').closest('section')).toHaveClass('is-pending');
+  expect(screen.getByText('안전 점수').closest('section')).toHaveClass('is-pending');
+  expect(screen.queryByText('0.0')).not.toBeInTheDocument();
   expect(screen.queryByText('시세 적정성')).not.toBeInTheDocument();
   expect(screen.queryByText('월세 계약 안전성 확인 완료')).not.toBeInTheDocument();
 });
@@ -468,6 +469,107 @@ test('주변 시설 metadata가 없으면 주변 시설 섹션을 숨긴다', ()
   );
 
   expect(screen.queryByText('주변 시설')).not.toBeInTheDocument();
+});
+
+test('로그인 전에는 사진 위 안전 점수를 노출하지 않는다', () => {
+  render(
+    <ListingPreview
+      listing={listing}
+      reviews={[]}
+      averageRating={0}
+      isReviewLoading={false}
+      reviewsError=""
+      isFavorite={false}
+      isLocked
+      onClose={jest.fn()}
+      onFavorite={jest.fn()}
+      onInquiry={jest.fn()}
+      onRequireLogin={jest.fn()}
+      onWriteReview={jest.fn()}
+    />,
+  );
+
+  expect(screen.getByText('로그인 필요')).toBeInTheDocument();
+  expect(screen.queryByText('안전 8.5')).not.toBeInTheDocument();
+});
+
+test('분석 완료 후 안전 점수는 숫자가 아니라 5단계 라벨로 보여준다', () => {
+  render(
+    <ListingPreview
+      listing={{ ...jeonseListing, safetyScore: 54, risk: { ...jeonseListing.risk, level: '주의' } }}
+      reviews={[]}
+      averageRating={0}
+      isReviewLoading={false}
+      reviewsError=""
+      registryUpload={{ id: 1 }}
+      isFavorite={false}
+      isLocked={false}
+      onClose={jest.fn()}
+      onFavorite={jest.fn()}
+      onInquiry={jest.fn()}
+      onRequireLogin={jest.fn()}
+      onWriteReview={jest.fn()}
+    />,
+  );
+
+  expect(screen.getAllByText('주의')).toHaveLength(3);
+  expect(screen.queryByText('54.0')).not.toBeInTheDocument();
+  expect(screen.queryByText('안전 54')).not.toBeInTheDocument();
+});
+
+test('위험도 라벨이 없어도 안전 점수 값으로 5단계를 계산한다', () => {
+  render(
+    <ListingPreview
+      listing={{ ...jeonseListing, safetyScore: 54, risk: { ...jeonseListing.risk, level: '미확인' } }}
+      reviews={[]}
+      averageRating={0}
+      isReviewLoading={false}
+      reviewsError=""
+      registryUpload={{ id: 1 }}
+      isFavorite={false}
+      isLocked={false}
+      onClose={jest.fn()}
+      onFavorite={jest.fn()}
+      onInquiry={jest.fn()}
+      onRequireLogin={jest.fn()}
+      onWriteReview={jest.fn()}
+    />,
+  );
+
+  expect(screen.getAllByText('주의').length).toBeGreaterThanOrEqual(2);
+  expect(screen.queryByText('54.0')).not.toBeInTheDocument();
+});
+
+test('내부 항목 점수는 숫자 대신 확인할 내용으로 안내한다', () => {
+  render(
+    <ListingPreview
+      listing={{
+        ...jeonseListing,
+        safetyScore: 54,
+        registrySafetyScore: 5.4,
+        risk: { ...jeonseListing.risk, mortgage: '5,400만원', ratio: '63.17%', level: '주의' },
+      }}
+      reviews={[]}
+      averageRating={0}
+      isReviewLoading={false}
+      reviewsError=""
+      registryUpload={{ id: 1 }}
+      isFavorite={false}
+      isLocked={false}
+      onClose={jest.fn()}
+      onFavorite={jest.fn()}
+      onInquiry={jest.fn()}
+      onRequireLogin={jest.fn()}
+      onWriteReview={jest.fn()}
+    />,
+  );
+
+  expect(screen.getByText(/실제 시세 점수가 들어오면 주변 시세와 공시가격 차이/)).toBeInTheDocument();
+  expect(screen.getByText(/전세가율이 63.17%이고 근저당 5,400만원이 확인됐어요/)).toBeInTheDocument();
+  expect(screen.getByText(/이 내용만 보고 판단하기보다 계약 전 말소 조건, 선순위 권리, 보증보험 가능 여부/)).toBeInTheDocument();
+  expect(screen.getByText(/실제 치안 점수가 들어오면 야간 이동과 주변 안전 정보/)).toBeInTheDocument();
+  expect(screen.queryByText('5.4')).not.toBeInTheDocument();
+  expect(screen.queryByText('등기부 안전')).not.toBeInTheDocument();
 });
 
 test('매물 데이터에 분석 완료처럼 보이는 필드가 있어도 사용자가 업로드하기 전이면 미확인으로 보여준다', () => {

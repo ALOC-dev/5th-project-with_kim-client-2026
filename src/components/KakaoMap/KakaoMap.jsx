@@ -8,6 +8,20 @@ const MARKER_COLORS = {
   monthly: '#3182f6',
   jeonse: '#f59e0b',
 };
+const FACILITY_TYPES = [
+  { key: 'CCTV', label: 'CCTV', icon: '📹', color: '#3182f6' },
+  { key: 'POLICE', label: '경찰서', icon: '🚓', color: '#ef4444' },
+  { key: 'CONVENIENCE_STORE', label: '편의점', icon: '🏪', color: '#22a06b' },
+  { key: 'SUBWAY', label: '지하철', icon: '🚇', color: '#8b5cf6' },
+  { key: 'STREETLIGHT', label: '가로등', icon: '💡', color: '#f59e0b' },
+];
+const FACILITY_TYPE_ALIASES = {
+  CCTV: 'CCTV', CAMERA: 'CCTV', CCTVS: 'CCTV', '씨씨티비': 'CCTV',
+  POLICE: 'POLICE', POLICE_STATION: 'POLICE', POLICESTATION: 'POLICE', '경찰서': 'POLICE',
+  CONVENIENCE: 'CONVENIENCE_STORE', CONVENIENCE_STORE: 'CONVENIENCE_STORE', STORE: 'CONVENIENCE_STORE', '편의점': 'CONVENIENCE_STORE',
+  SUBWAY: 'SUBWAY', SUBWAY_STATION: 'SUBWAY', METRO: 'SUBWAY', '지하철': 'SUBWAY', '지하철역': 'SUBWAY',
+  STREETLIGHT: 'STREETLIGHT', STREET_LIGHT: 'STREETLIGHT', LAMP: 'STREETLIGHT', '가로등': 'STREETLIGHT',
+};
 
 function getCoordinateKey(latitude, longitude) {
   return `${latitude.toFixed(6)},${longitude.toFixed(6)}`;
@@ -34,6 +48,52 @@ function resolveListingPosition(maps, geocoder, listing) {
         latitude: Number(result[0].y),
         longitude: Number(result[0].x),
       });
+    });
+  });
+}
+
+export function normalizeFacilityType(value) {
+  const normalized = String(value || '').trim().toUpperCase().replace(/[\s-]+/g, '_');
+  return FACILITY_TYPE_ALIASES[normalized] || FACILITY_TYPE_ALIASES[String(value || '').trim()] || null;
+}
+
+function normalizeFacility(facility) {
+  const type = normalizeFacilityType(facility?.type ?? facility?.category ?? facility?.facilityType ?? facility?.kind);
+  if (!type) return null;
+  const latitude = Number(facility.latitude ?? facility.lat ?? facility.position?.lat);
+  const longitude = Number(facility.longitude ?? facility.lng ?? facility.lon ?? facility.position?.lng);
+  return {
+    ...facility,
+    type,
+    latitude: Number.isFinite(latitude) ? latitude : null,
+    longitude: Number.isFinite(longitude) ? longitude : null,
+    address: facility.address || facility.location || '',
+    name: facility.name || facility.title || '',
+  };
+}
+
+function createFacilityMarker(maps, position, facility) {
+  const facilityType = FACILITY_TYPES.find((item) => item.key === facility.type) || FACILITY_TYPES[0];
+  const element = document.createElement('span');
+  element.className = 'kakao-map__facility-marker';
+  element.style.setProperty('--facility-color', facilityType.color);
+  element.title = facility.name || facilityType.label;
+  element.textContent = facilityType.icon;
+  return new maps.CustomOverlay({ position, content: element, xAnchor: 0.5, yAnchor: 0.5, zIndex: 3 });
+}
+
+function resolveFacilityPosition(maps, geocoder, facility) {
+  if (facility.latitude !== null && facility.longitude !== null) {
+    return Promise.resolve({ facility, latitude: facility.latitude, longitude: facility.longitude });
+  }
+  if (!facility.address) return Promise.resolve({ facility, latitude: null, longitude: null });
+  return new Promise((resolve) => {
+    geocoder.addressSearch(facility.address, (result, status) => {
+      if (status !== maps.services.Status.OK || !result[0]) {
+        resolve({ facility, latitude: null, longitude: null });
+        return;
+      }
+      resolve({ facility, latitude: Number(result[0].y), longitude: Number(result[0].x) });
     });
   });
 }
@@ -115,13 +175,16 @@ function isWithinCampus(latitude, longitude) {
   return earthRadiusMeters * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)) <= CAMPUS_AREA_RADIUS_METERS;
 }
 
-export default function KakaoMap({ listings = [], onSelect, onSelectBuilding }) {
+export default function KakaoMap({ listings = [], facilities = [], onSelect, onSelectBuilding }) {
   const containerRef = useRef(null);
   const onSelectRef = useRef(onSelect);
   const onSelectBuildingRef = useRef(onSelectBuilding);
+  const mapRef = useRef(null);
+  const facilityMarkerGroupsRef = useRef(new Map());
   const [error, setError] = useState('');
-  const [locationWarning, setLocationWarning] = useState('');
   const [displayedCount, setDisplayedCount] = useState(0);
+  const [activeFacilityType, setActiveFacilityType] = useState('CCTV');
+  const activeFacilityTypeRef = useRef(activeFacilityType);
 
   useEffect(() => {
     onSelectRef.current = onSelect;
@@ -129,11 +192,17 @@ export default function KakaoMap({ listings = [], onSelect, onSelectBuilding }) 
   }, [onSelect, onSelectBuilding]);
 
   useEffect(() => {
+    activeFacilityTypeRef.current = activeFacilityType;
+    facilityMarkerGroupsRef.current.forEach((markers, type) => {
+      markers.forEach((marker) => marker.setMap(type === activeFacilityType ? mapRef.current : null));
+    });
+  }, [activeFacilityType]);
+
+  useEffect(() => {
     let active = true;
     const markers = [];
     const overlays = [];
     setError('');
-    setLocationWarning('');
     setDisplayedCount(0);
 
     loadKakaoMapSdk()
@@ -144,6 +213,7 @@ export default function KakaoMap({ listings = [], onSelect, onSelectBuilding }) 
           center: new maps.LatLng(CAMPUS_CENTER.lat, CAMPUS_CENTER.lng),
           level: 4,
         });
+        mapRef.current = map;
         const campusCenter = new maps.LatLng(CAMPUS_CENTER.lat, CAMPUS_CENTER.lng);
         const campusArea = new maps.Circle({
           center: campusCenter,
@@ -170,6 +240,7 @@ export default function KakaoMap({ listings = [], onSelect, onSelectBuilding }) 
         const bounds = new maps.LatLngBounds();
         const geocoder = new maps.services.Geocoder();
         const propertyMarkers = [];
+        const facilityMarkers = new Map();
         let campusFilterActive = false;
         let campusFilterPinned = false;
 
@@ -201,7 +272,6 @@ export default function KakaoMap({ listings = [], onSelect, onSelectBuilding }) 
             if (!active) return;
 
             const locatedListings = resolvedListings.filter(({ latitude, longitude }) => latitude !== null && longitude !== null);
-            const missingCount = resolvedListings.length - locatedListings.length;
             const groupedListings = locatedListings.reduce((groups, listing) => {
               const key = listing.listing.buildingId ? `building-${listing.listing.buildingId}` : getCoordinateKey(listing.latitude, listing.longitude);
               const group = groups.get(key) || [];
@@ -229,18 +299,42 @@ export default function KakaoMap({ listings = [], onSelect, onSelectBuilding }) 
 
             refreshPropertyMarkers();
             setDisplayedCount(locatedListings.length);
-            if (missingCount) setLocationWarning(`주소를 찾지 못한 매물 ${missingCount}개는 지도에 표시되지 않았습니다.`);
             if (locatedListings.length > 0) map.setBounds(bounds);
+          });
+
+        const normalizedFacilities = facilities.map(normalizeFacility).filter(Boolean);
+        Promise.all(normalizedFacilities.map((facility) => resolveFacilityPosition(maps, geocoder, facility)))
+          .then((resolvedFacilities) => {
+            if (!active) return;
+            const coordinates = new Set();
+            resolvedFacilities
+              .filter(({ latitude, longitude }) => latitude !== null && longitude !== null)
+              .forEach(({ facility, latitude, longitude }) => {
+                const coordinateKey = `${facility.type}-${getCoordinateKey(latitude, longitude)}`;
+                if (coordinates.has(coordinateKey)) return;
+                coordinates.add(coordinateKey);
+                const marker = createFacilityMarker(maps, new maps.LatLng(latitude, longitude), facility);
+                const markersForType = facilityMarkers.get(facility.type) || [];
+                markersForType.push(marker);
+                facilityMarkers.set(facility.type, markersForType);
+                overlays.push(marker);
+              });
+            facilityMarkerGroupsRef.current = facilityMarkers;
+            facilityMarkerGroupsRef.current.forEach((markers, type) => {
+              markers.forEach((marker) => marker.setMap(type === activeFacilityTypeRef.current ? map : null));
+            });
           });
       })
       .catch(() => { if (active) setError('카카오맵을 불러오지 못했습니다. JavaScript 키와 도메인 등록을 확인해 주세요.'); });
 
     return () => {
       active = false;
+      mapRef.current = null;
+      facilityMarkerGroupsRef.current = new Map();
       markers.forEach((marker) => marker.setMap(null));
       overlays.forEach((overlay) => overlay.setMap(null));
     };
-  }, [listings]);
+  }, [listings, facilities]);
 
-  return <div className="kakao-map"><div ref={containerRef} className="kakao-map__canvas" />{listings.length > 0 && <span className="kakao-map__count">지도 매물 {displayedCount}/{listings.length}</span>}{locationWarning && <span className="kakao-map__notice">{locationWarning}</span>}{error && <div className="kakao-map__error"><strong>카카오맵 설정 필요</strong><span>{error}</span><code>REACT_APP_KAKAO_MAP_APP_KEY</code></div>}</div>;
+  return <div className="kakao-map"><div ref={containerRef} className="kakao-map__canvas" /><div className="kakao-map__facility-controls" aria-label="주변 시설 필터">{FACILITY_TYPES.map((facility) => <button key={facility.key} type="button" className={activeFacilityType === facility.key ? 'is-active' : ''} aria-pressed={activeFacilityType === facility.key} onClick={() => setActiveFacilityType(facility.key)}><span>{facility.icon}</span>{facility.label}</button>)}</div>{listings.length > 0 && <span className="kakao-map__count">지도 매물 {displayedCount}/{listings.length}</span>}{error && <div className="kakao-map__error"><strong>카카오맵 설정 필요</strong><span>{error}</span><code>REACT_APP_KAKAO_MAP_APP_KEY</code></div>}</div>;
 }
