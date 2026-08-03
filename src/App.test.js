@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import App from './App.jsx';
-import { exchangeKakaoCode, getAuthorizationHeader, getCurrentUsername, getKakaoLoginStartUrl } from './services';
+import { exchangeKakaoCode, getAuthorizationHeader, getCurrentUsername, getKakaoLoginStartUrl, loginBusinessUser } from './services';
 
 test('renders the Kakao login start page', async () => {
   window.history.replaceState({}, '', '/login');
@@ -64,4 +64,45 @@ test('stores tokens returned from the Spring Boot Kakao login response', async (
   expect(localStorage.getItem('sibang.username')).toBe('김정묵');
   expect(getCurrentUsername()).toBe('김정묵');
   expect(getAuthorizationHeader()).toEqual({ Authorization: 'Bearer access-token' });
+});
+
+test('logs in a business user through the Spring Boot login endpoint', async () => {
+  global.fetch = jest.fn().mockResolvedValue({
+    ok: true,
+    json: async () => ({
+      id: 8,
+      accessToken: 'business-access-token',
+      refreshToken: 'business-refresh-token',
+      TokenType: 'Bearer',
+    }),
+  });
+
+  const loginResponse = await loginBusinessUser({ loginId: 'broker-user', password: 'password' });
+
+  expect(global.fetch).toHaveBeenCalledWith('https://www.sibang.site/api/auth/login', {
+    method: 'POST',
+    headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+    body: JSON.stringify({ loginId: 'broker-user', password: 'password' }),
+  });
+  expect(loginResponse).toMatchObject({ id: 8, username: 'broker-user', accessToken: 'business-access-token' });
+  expect(localStorage.getItem('sibang.accessToken')).toBe('business-access-token');
+  expect(localStorage.getItem('sibang.username')).toBe('broker-user');
+});
+
+test('shows the business console after business login succeeds', async () => {
+  localStorage.clear();
+  window.history.replaceState({}, '', '/login');
+  global.fetch = jest.fn().mockResolvedValue({
+    ok: true,
+    json: async () => ({ id: 8, accessToken: 'business-access-token', refreshToken: 'business-refresh-token' }),
+  });
+
+  render(<App />);
+  fireEvent.click(await screen.findByRole('button', { name: '사업자 로그인' }));
+  fireEvent.change(screen.getByLabelText('아이디'), { target: { value: 'broker-user' } });
+  fireEvent.change(screen.getByLabelText('비밀번호'), { target: { value: 'password' } });
+  fireEvent.click(screen.getByRole('button', { name: '로그인' }));
+
+  expect(await screen.findByRole('heading', { name: '매물 등록' })).toBeInTheDocument();
+  expect(screen.getAllByText('관리자')).toHaveLength(2);
 });

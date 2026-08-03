@@ -72,13 +72,14 @@ export function useResidenceVerification(isAuthenticated, userId) {
   };
 
   const completeVerification = (history = []) => {
+    const matchedHistory = history.filter((item) => String(item.matchStatus || '').toUpperCase() === 'MATCHED');
     const nextVerification = {
       ...(verification || defaultVerification),
-      isVerified: true,
+      isVerified: matchedHistory.length > 0,
       status: 'COMPLETED',
       isDeferred: false,
       history,
-      address: history.find((item) => item.current)?.address || history[0]?.address || '',
+      address: matchedHistory.find((item) => item.current)?.address || matchedHistory[0]?.address || '',
       rewardMessage: '실거주 인증이 완료되었어요. 인증 리뷰를 확인할 수 있어요.',
     };
     setVerification(nextVerification);

@@ -1,0 +1,22 @@
+.business-sidebar { background: #f8fafc; border-right: 1px solid #edf0f4; display: flex; flex: 0 0 clamp(200px, 14.75vw, 284px); flex-direction: column; min-height: 0; padding: clamp(16px, 1.55vw, 30px) clamp(10px, 1.35vw, 26px) clamp(14px, 1.2vw, 24px); }
+.business-sidebar__brand { align-items: center; background: transparent; border: 0; color: #202938; cursor: pointer; display: flex; gap: clamp(9px, .7vw, 14px); padding: 2px 4px clamp(24px, 2.1vw, 40px); text-align: left; }
+.business-sidebar__brand > span:last-child { display: grid; gap: 2px; }
+.business-sidebar__brand b { font-size: clamp(13px, 1.25vw, 24px); letter-spacing: -.04em; }
+.business-sidebar__brand small { color: #8b96a7; font-size: clamp(9px, .65vw, 13px); }
+.business-sidebar__logo { align-items: center; background: #3180ed; border-radius: clamp(10px, .75vw, 15px); color: #fff; display: inline-flex; height: clamp(38px, 3vw, 58px); justify-content: center; width: clamp(38px, 3vw, 58px); }
+.business-sidebar__nav { display: grid; gap: clamp(6px, .65vw, 12px); }
+.business-sidebar__item { align-items: center; background: transparent; border: 1px solid transparent; border-radius: clamp(10px, .75vw, 15px); color: #536173; cursor: pointer; display: flex; font-size: clamp(12px, .9vw, 18px); font-weight: 700; gap: clamp(9px, .7vw, 14px); min-height: clamp(38px, 3.7vw, 70px); padding: 0 clamp(10px, 1vw, 20px); text-align: left; }
+.business-sidebar__item .icon { color: #8593a5; }
+.business-sidebar__item.is-active { background: #e7f0ff; border-color: #2f80ed; color: #1d70e8; }
+.business-sidebar__item.is-active .icon { color: #1d70e8; }
+.business-sidebar__item em { background: #3180ed; border-radius: 4px; color: #fff; font-size: clamp(8px, .55vw, 11px); font-style: normal; margin-left: auto; padding: 2px 4px; }
+.business-sidebar__risk { background: #eaf2ff; border: 0; border-radius: clamp(10px, .75vw, 15px); color: #23334b; cursor: pointer; display: grid; gap: clamp(4px, .35vw, 7px); margin-top: auto; padding: clamp(12px, 1vw, 20px) clamp(10px, .9vw, 18px); text-align: left; }
+.business-sidebar__risk b { font-size: clamp(10px, .7vw, 14px); }
+.business-sidebar__risk span { color: #6e7e94; font-size: clamp(9px, .62vw, 12px); line-height: 1.35; }
+@media (max-width: 700px) {
+  .business-sidebar { border-bottom: 1px solid #edf0f4; border-right: 0; flex: 0 0 auto; padding: 10px 12px; }
+  .business-sidebar__brand { padding: 0 4px 10px; }
+  .business-sidebar__nav { display: flex; gap: 6px; overflow-x: auto; }
+  .business-sidebar__item { flex: 0 0 auto; min-height: 34px; }
+  .business-sidebar__risk { display: none; }
+}

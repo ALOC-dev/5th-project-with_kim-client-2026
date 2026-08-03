@@ -493,7 +493,7 @@ test('로그인 전에는 사진 위 안전 점수를 노출하지 않는다', (
   expect(screen.queryByText('안전 8.5')).not.toBeInTheDocument();
 });
 
-test('분석 완료 후 안전 점수는 숫자가 아니라 5단계 라벨로 보여준다', () => {
+test('분석 완료 후 안전 점수는 숫자가 아니라 3단계 요약 라벨로 보여준다', () => {
   render(
     <ListingPreview
       listing={{ ...jeonseListing, safetyScore: 54, risk: { ...jeonseListing.risk, level: '주의' } }}
@@ -512,12 +512,12 @@ test('분석 완료 후 안전 점수는 숫자가 아니라 5단계 라벨로 �
     />,
   );
 
-  expect(screen.getAllByText('주의')).toHaveLength(3);
+  expect(screen.getAllByText('참고')).toHaveLength(2);
   expect(screen.queryByText('54.0')).not.toBeInTheDocument();
   expect(screen.queryByText('안전 54')).not.toBeInTheDocument();
 });
 
-test('위험도 라벨이 없어도 안전 점수 값으로 5단계를 계산한다', () => {
+test('위험도 라벨이 없어도 안전 점수 값으로 3단계 라벨을 계산한다', () => {
   render(
     <ListingPreview
       listing={{ ...jeonseListing, safetyScore: 54, risk: { ...jeonseListing.risk, level: '미확인' } }}
@@ -536,7 +536,7 @@ test('위험도 라벨이 없어도 안전 점수 값으로 5단계를 계산한
     />,
   );
 
-  expect(screen.getAllByText('주의').length).toBeGreaterThanOrEqual(2);
+  expect(screen.getAllByText('참고')).toHaveLength(2);
   expect(screen.queryByText('54.0')).not.toBeInTheDocument();
 });
 
@@ -615,7 +615,7 @@ test('등기부등본 업로드 후에는 위험도 분석 결과를 보여주�
     />,
   );
 
-  expect(screen.getByText('등기부: 근저당 없음 · 안전')).toBeInTheDocument();
+  expect(screen.getByText('등기부: 근저당 없음 · 안심')).toBeInTheDocument();
   expect(screen.getByText('전세가율').closest('span')).toHaveTextContent('62%');
   expect(screen.queryByText('등기부등본 업로드하고 위험도 확인하기')).not.toBeInTheDocument();
 });

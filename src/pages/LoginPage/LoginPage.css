@@ -210,6 +210,10 @@
   text-align: center;
 }
 
+.login-page__switch--after-submit {
+  margin-top: 14px;
+}
+
 .login-page__switch button,
 .login-page__back-to-student {
   background: none;
