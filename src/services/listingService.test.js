@@ -1,6 +1,22 @@
-import { applyRegistrySubmissionToListing, buildHouseSearchParams, buildRegistrySubmissionMetadata, getListingDetail, getListings, getMyWishList, getRegistrySubmission, isRegistrySubmissionPending, pollRegistrySubmission, shouldRefreshListingAfterRegistrySubmission, toggleFavorite, uploadRegistryDocument } from './listingService';
+import { applyRegistrySubmissionToListing, buildHouseSearchParams, buildRegistrySubmissionMetadata, getListingDetail, getListings, getMyWishList, getRegistrySubmission, isRegistrySubmissionPending, pollRegistrySubmission, searchHouses, shouldRefreshListingAfterRegistrySubmission, toggleFavorite, uploadRegistryDocument } from './listingService';
 
-test('loads the first 30 houses through the deployed house search API', async () => {
+test('searches houses with the natural-language query and topK', async () => {
+  global.fetch = jest.fn().mockResolvedValue({
+    ok: true,
+    status: 200,
+    json: async () => ([{ id: 1, contractType: 'MONTHLY', price: 550000, address: '서울 동대문구 전농동 295-1' }]),
+  });
+
+  const listings = await searchHouses('보증금 500만원, 월세 55만원 이하', 5);
+
+  expect(global.fetch).toHaveBeenCalledWith('https://www.sibang.site/api/houses/search', expect.objectContaining({
+    method: 'POST',
+    body: JSON.stringify({ query: '보증금 500만원, 월세 55만원 이하', topK: 5 }),
+  }));
+  expect(listings).toMatchObject([{ id: '1', dealType: '월세', address: '서울 동대문구 전농동 295-1' }]);
+});
+
+test('loads houses around the campus through the deployed house search API', async () => {
   global.fetch = jest.fn().mockResolvedValue({
     ok: true,
     status: 200,
@@ -9,9 +25,21 @@ test('loads the first 30 houses through the deployed house search API', async ()
 
   const listings = await getListings();
 
-  expect(global.fetch).toHaveBeenCalledWith('https://www.sibang.site/api/houses/search?page=0&size=30', expect.objectContaining({ method: 'GET' }));
+  expect(global.fetch).toHaveBeenCalledWith('https://www.sibang.site/api/houses/search?page=0&size=200&centerLat=37.583866&centerLng=127.058777&radius=1000', expect.objectContaining({ method: 'GET' }));
   expect(listings).toHaveLength(1);
-  expect(listings[0]).toMatchObject({ id: '1', dealType: '월세', deposit: '500', rent: '55', area: '24.2㎡', floor: '3층', roomType: '원룸', direction: '남향', maintenance: '월 6만원', features: ['남향'] });
+  expect(listings[0]).toMatchObject({ id: '1', dealType: '월세', deposit: '500', rent: '55', area: '24.2㎡', floor: '3층', roomType: '원룸', direction: '남향', maintenance: '월 6만원', features: ['남향'], marketSafetyScore: 5, securitySafetyScore: 5 });
+});
+
+test('uses API safety scores when they are provided instead of example scores', async () => {
+  global.fetch = jest.fn().mockResolvedValue({
+    ok: true,
+    status: 200,
+    json: async () => ({ content: [{ houseId: 1, contractType: 'MONTHLY', marketSafetyScore: 8, securitySafetyScore: 9 }] }),
+  });
+
+  const listings = await getListings();
+
+  expect(listings[0]).toMatchObject({ marketSafetyScore: 8, securitySafetyScore: 9 });
 });
 
 test('converts visible filter values into house search query parameters', () => {
@@ -19,7 +47,13 @@ test('converts visible filter values into house search query parameters', () => 
     dealType: '월세', depositLimit: 1000, rentLimit: 60, roomType: '원룸', options: { parking: true },
   });
 
-  expect(params.toString()).toBe('page=0&size=30&contractType=MONTHLY&maxDeposit=10000000&maxMonthlyRent=600000&minRoomNumber=1&maxRoomNumber=1&minParking=1');
+  expect(params.toString()).toBe('page=0&size=200&centerLat=37.583866&centerLng=127.058777&radius=1000&contractType=MONTHLY&maxDeposit=10000000&maxMonthlyRent=600000&minRoomNumber=1&maxRoomNumber=1&minParking=1');
+});
+
+test('omits the unrestricted deposit and rent limits from the house search query', () => {
+  const params = buildHouseSearchParams({ depositLimit: 15000, rentLimit: 100 });
+
+  expect(params.toString()).toBe('page=0&size=200&centerLat=37.583866&centerLng=127.058777&radius=1000');
 });
 
 test('loads a selected listing through its house detail endpoint', async () => {

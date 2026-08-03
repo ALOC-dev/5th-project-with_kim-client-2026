@@ -1,0 +1,11 @@
+.business-page { background: #f1efe8; display: flex; height: 100vh; height: 100dvh; min-width: 0; overflow: hidden; width: 100%; }
+.business-page__main { background: #fff; border-radius: 0 17px 17px 0; display: flex; flex: 1; flex-direction: column; min-width: 0; overflow: hidden; }
+.business-page__header { align-items: center; border-bottom: 1px solid #edf0f4; display: flex; justify-content: space-between; min-height: clamp(72px, 6.25vw, 120px); padding: 0 clamp(20px, 2vw, 38px); }
+.business-page__title-row { align-items: center; display: flex; gap: clamp(7px, .55vw, 11px); }
+.business-page__header h1 { color: #202938; font-size: clamp(18px, 1.65vw, 32px); letter-spacing: -.05em; margin: 0; }
+.business-page__title-row span { background: #e8f1ff; border-radius: clamp(5px, .4vw, 8px); color: #3180ed; font-size: clamp(9px, .65vw, 13px); font-weight: 800; padding: clamp(4px, .35vw, 7px) clamp(6px, .45vw, 9px); }
+.business-page__header p { color: #8c98a8; font-size: clamp(10px, .72vw, 14px); margin: clamp(4px, .35vw, 7px) 0 0; }
+.business-page__actions { align-items: center; display: flex; gap: clamp(7px, .55vw, 11px); }
+.business-page__logout { background: #f4f6f8; border: 1px solid #e5e9ef; border-radius: clamp(8px, .65vw, 13px); color: #687588; cursor: pointer; font: inherit; font-size: clamp(10px, .75vw, 15px); font-weight: 800; min-height: clamp(34px, 3.4vw, 65px); padding: 0 clamp(11px, 1vw, 20px); }
+.business-page__body { container-name: business-content; container-type: inline-size; min-height: 0; overflow-y: auto; padding: clamp(16px, 2vw, 38px) clamp(20px, 2vw, 38px) clamp(24px, 2.5vw, 48px); }
+@media (max-width: 700px) { .business-page { display: block; overflow-y: auto; }.business-page__main { border-radius: 0; min-height: calc(100dvh - 94px); }.business-page__header { align-items: flex-start; gap: 10px; min-height: 78px; padding: 15px 14px; }.business-page__header h1 { font-size: 17px; }.business-page__header p { line-height: 1.35; max-width: 220px; }.business-page__actions { flex-direction: column-reverse; }.business-page__actions .business-page__primary { min-height: 32px; white-space: nowrap; }.business-page__logout { min-height: 30px; }.business-page__body { padding: 12px; } }

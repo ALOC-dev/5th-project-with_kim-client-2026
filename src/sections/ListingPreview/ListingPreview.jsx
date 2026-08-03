@@ -12,6 +12,7 @@ import './ListingPreviewLock.css';
 import './ListingPreviewReviews.css';
 import './ListingPreviewBack.css';
 import './ListingPreviewDrag.css';
+import './ListingPreviewSafety.css';
 
 export default function ListingPreview({ listing, reviews, averageRating, isReviewLoading, reviewsError, currentUserId, registryUpload, isFavorite, isLocked, onClose, onFavorite, onInquiry, onRequireLogin, onWriteReview, onEditReview, onDeleteReview, onUploadRegistry }) {
   const price = formatListingPrice(listing);
@@ -132,13 +133,14 @@ function ReviewSummary({ reviews, averageRating, isLoading, error, currentUserId
 function SafetyScore({ listing, isJeonse, registryStatus }) {
   const isPending = registryStatus !== 'ANALYZED';
   const safetyLevel = isPending ? '미확인' : getSafetyLevelLabel(listing);
-  const resultText = getRegistrySafetyResultText(registryStatus, listing, isJeonse);
+  const safetyTone = isPending ? 'is-pending' : getSafetyToneClass(safetyLevel);
+  const resultText = getRegistrySafetyResultText(registryStatus, listing);
   const guideItems = getSafetyGuideItems(listing, isJeonse);
 
-  return <section className={`listing-preview__safety ${isPending ? 'is-pending' : ''}`}>
+  return <section className={`listing-preview__safety ${safetyTone}`}>
     <header><strong>{safetyLevel}</strong><div><b>안전 점수</b><span>시세·등기부·치안·교통 종합 분석</span></div></header>
     {registryStatus === 'ANALYZED' && <div className="listing-preview__safety-guides">{guideItems.map((item) => <p key={item.label}><b>{item.label}</b><span>{item.description}</span></p>)}</div>}
-    <p className="listing-preview__safety-result"><Icon name={isPending ? 'shield' : 'check'} size={16} />{resultText}</p>
+    <p className={`listing-preview__safety-result ${safetyTone}`}><Icon name={isPending ? 'shield' : 'check'} size={16} />{resultText}</p>
   </section>;
 }
 
@@ -153,22 +155,31 @@ function getSafetyGuideItems(listing, isJeonse) {
 
 function getInternalSafetyScores(listing) {
   return {
-    market: getScoreOrDefault(listing.marketSafetyScore ?? listing.marketScore, 10),
+    market: getScoreOrDefault(listing.marketSafetyScore ?? listing.marketScore, null),
     registry: getScoreOrDefault(listing.registrySafetyScore ?? listing.registryScore, getRegistryScoreFromRisk(listing)),
-    security: getScoreOrDefault(listing.securitySafetyScore ?? listing.securityScore ?? listing.crimeScore, 10),
+    security: getScoreOrDefault(listing.securitySafetyScore ?? listing.securityScore ?? listing.crimeScore, null),
   };
 }
 
 function getScoreOrDefault(value, defaultValue) {
+  const score = normalizeSafetyScore(value);
+  return score === null ? defaultValue : score;
+}
+
+function normalizeSafetyScore(value) {
+  if (value === null || value === undefined || value === '') return null;
   const score = Number(value);
-  return Number.isFinite(score) ? score : defaultValue;
+  if (!Number.isFinite(score)) return null;
+  return score > 10 ? score / 10 : score;
 }
 
 function getRegistryScoreFromRisk(listing) {
-  if (listing.risk?.mortgage === '없음') return 10;
-  const mortgageAmount = parseKoreanManwonAmount(listing.risk?.mortgage);
+  const mortgage = listing.risk?.mortgage;
+  if (!mortgage || mortgage === '미확인') return null;
+  if (mortgage === '없음') return 10;
+  const mortgageAmount = parseKoreanManwonAmount(mortgage);
   if (mortgageAmount) return Math.max(0, Math.min(10, mortgageAmount / 1000));
-  return 7;
+  return null;
 }
 
 function parseKoreanManwonAmount(value) {
@@ -178,37 +189,52 @@ function parseKoreanManwonAmount(value) {
 }
 
 function getMarketSafetyGuide(score) {
-  if (score < 6) return '주변 시세나 공시가격보다 조건이 높은 편인지 다시 확인해 보세요.';
-  if (score < 8) return '비슷한 매물 2~3개와 보증금, 월세, 관리비를 함께 비교해 보세요.';
-  return '현재는 안전한 범위로 가정했어요. 실제 시세 점수가 들어오면 주변 시세와 공시가격 차이를 기준으로 안내할게요.';
+  if (score === null) return '시세 점수는 아직 준비 중이에요. 실제 시세 점수가 들어오면 주변 시세와 공시가격 차이를 기준으로 안내할게요.';
+  if (score >= 9) return '주변 시세와 비교했을 때 이 매물의 가격은 적정 범위 안에 있어요. 인근 거래가와 큰 차이가 없어 가격 측면에서는 안심하고 검토하셔도 좋아요.';
+  if (score >= 7) return '주변 시세와 거의 비슷한 수준이에요. 특별히 우려할 만한 가격 차이는 없어요.';
+  if (score >= 5) return '주변 시세보다 약간 높게 책정된 편이에요. 같은 조건의 다른 매물과 한 번 더 비교해보시는 걸 권장해요.';
+  if (score >= 3) return '주변 시세 대비 가격이 다소 높게 책정돼 있어요. 신축 여부·옵션·구조 차이가 있는지 임장 시 확인해보시는 게 좋아요.';
+  return '주변 시세 대비 가격이 눈에 띄게 높아요. 왜 이런 차이가 나는지 반드시 확인 후 계약을 진행하시길 권장해요.';
 }
 
 function getRegistrySafetyGuide(score, listing, isJeonse) {
   const ratioLabel = isJeonse ? '전세가율' : '보증금 비율';
   const ratioValue = listing.risk?.ratio || '미확인';
   const mortgageValue = listing.risk?.mortgage || '미확인';
-  if (score < 6) {
-    return `${ratioLabel}이 ${ratioValue}이고 근저당 ${mortgageValue}이 확인됐어요. 이 내용만 보고 판단하기보다 계약 전 말소 조건, 선순위 권리, 보증보험 가능 여부도 함께 확인하는 게 좋아요.`;
-  }
-  if (score < 8) return `${ratioLabel}이 ${ratioValue}예요. 등기부에서 확인할 부분이 있으니 소유자 일치와 근저당 말소 조건을 계약서에 남기는 게 좋아요.`;
-  return `${ratioLabel}이 ${ratioValue}예요. 등기부 위험 신호는 낮게 봤지만, 계약 전 등기부 원본과 소유자 일치는 다시 확인해 주세요.`;
+  if (score === null) return '등기부 점수는 아직 준비 중이에요. 실제 등기부 점수가 들어오면 근저당, 선순위 권리, 보증보험 가능 여부를 함께 안내할게요.';
+  if (score >= 9) return '근저당이나 선순위 채권이 없고, 전세가율도 안정적인 수준이에요. 등기부 상으로는 특별히 우려할 부분이 없어요.';
+  if (score >= 7) return '근저당이 소액 설정되어 있지만 전세가율이 안정적인 편이에요. 계약 전 말소 조건 정도만 확인하면 충분해요.';
+  if (score >= 5) return `${ratioLabel}이 ${ratioValue}이고 근저당 ${mortgageValue}이 확인됐어요. 이 내용만 보고 판단하기보다 계약 전 말소 조건, 선순위 권리, 보증보험 가능 여부도 함께 확인하는 게 좋아요.`;
+  if (score >= 3) return '전세가율이 높은 편이고 근저당 설정액도 상당해요. 보증금을 지키기 어려울 수 있으니 보증보험 가입 가능 여부를 반드시 확인하세요.';
+  return '전세가율이 매우 높고 선순위 채권까지 확인돼요. 보증금 반환에 위험이 있을 수 있어 계약에 신중을 기하시길 권장해요.';
 }
 
 function getSecuritySafetyGuide(score) {
-  if (score < 6) return '야간 이동 동선, CCTV, 골목 밝기, 주변 치안 시설을 직접 확인해 보세요.';
-  if (score < 8) return '낮과 밤의 주변 분위기가 다를 수 있어 귀가 시간대 동선을 확인해 보세요.';
-  return '현재는 안전한 범위로 가정했어요. 실제 치안 점수가 들어오면 야간 이동과 주변 안전 정보를 함께 안내할게요.';
+  if (score === null) return '치안 점수는 아직 준비 중이에요. 실제 치안 점수가 들어오면 야간 이동과 주변 안전 정보를 함께 안내할게요.';
+  if (score >= 9) return 'CCTV와 가로등이 충분히 갖춰져 있고, 이 지역의 최근 치안 지표도 양호한 편이에요.';
+  if (score >= 7) return '치안 인프라가 전반적으로 잘 갖춰진 지역이에요. 야간 이동에도 큰 무리가 없을 것으로 보여요.';
+  if (score >= 5) return '치안 인프라는 평균적인 수준이에요. 다만 밤늦게 다니실 일이 많다면 주변 동선을 한 번 직접 확인해보시는 게 좋아요.';
+  if (score >= 3) return '이 지역은 야간 유동인구가 적고 CCTV 밀도가 낮은 편이에요. 늦은 시간 귀가가 잦으시다면 이 부분을 신중히 고려해보시는 게 좋아요.';
+  return 'CCTV·가로등 등 치안 인프라가 부족하고 야간 유동인구도 매우 적은 지역이에요. 야간 이동이 잦다면 신중히 검토하시길 권장해요.';
 }
 
 function getSafetyLevelLabel(listing) {
-  if (listing.risk?.level && listing.risk.level !== '미확인') return listing.risk.level;
-  const score = Number(listing.safetyScore);
-  if (!Number.isFinite(score) || score <= 0) return '분석 전';
-  if (score < 20) return '매우 위험';
-  if (score < 40) return '위험';
-  if (score < 60) return '주의';
-  if (score < 80) return '양호';
-  return '안전';
+  const score = normalizeSafetyScore(listing.safetyScore);
+  return getSafetySummaryLabel(score);
+}
+
+function getSafetySummaryLabel(score) {
+  if (score === null) return '준비 중';
+  if (score >= 7) return '안심';
+  if (score >= 5) return '참고';
+  return '주의';
+}
+
+function getSafetyToneClass(label) {
+  if (label === '안심') return 'is-reassuring';
+  if (label === '참고') return 'is-reference';
+  if (label === '주의') return 'is-caution';
+  return 'is-pending';
 }
 
 function RiskCard({ listing, registryStatus, canUpload, onOpenGuide }) {
@@ -224,20 +250,27 @@ function RiskCard({ listing, registryStatus, canUpload, onOpenGuide }) {
   </section>;
 }
 
-function getRegistrySafetyResultText(registryStatus, listing, isJeonse) {
+function getRegistrySafetyResultText(registryStatus, listing) {
   if (registryStatus === 'PENDING') return '등기부: 분석 중이에요';
   if (registryStatus === 'NEEDS_MORE_DOCS') return '등기부: 보완 서류가 필요해요';
   if (registryStatus === 'FAILED') return '등기부: 분석에 실패했어요';
   if (registryStatus !== 'ANALYZED') return '등기부: 업로드 전 · 미확인';
-  return isJeonse ? `등기부: 근저당 ${listing.risk.mortgage} · ${listing.risk.level}` : '월세 계약 안전성 확인 완료';
+  return `등기부: 근저당 ${listing.risk.mortgage} · ${getRegistrySummaryLabel(listing)}`;
 }
 
 function getRegistryRiskStatusBadge(registryStatus, listing) {
-  if (registryStatus === 'ANALYZED') return { label: listing.risk.level, tone: listing.risk.level === '안전' ? 'green' : 'orange' };
+  if (registryStatus === 'ANALYZED') {
+    const label = getRegistrySummaryLabel(listing);
+    return { label, tone: label === '안심' ? 'green' : 'orange' };
+  }
   if (registryStatus === 'PENDING') return { label: '분석 중', tone: 'gray' };
   if (registryStatus === 'NEEDS_MORE_DOCS') return { label: '보완 필요', tone: 'orange' };
   if (registryStatus === 'FAILED') return { label: '실패', tone: 'orange' };
   return { label: '미확인', tone: 'gray' };
+}
+
+function getRegistrySummaryLabel(listing) {
+  return getSafetySummaryLabel(getInternalSafetyScores(listing).registry);
 }
 
 function RegistryUploadGuide({ listing, onClose, onUpload }) {

@@ -9,6 +9,17 @@ const fallbackPositions = [
 const contractTypeLabels = { MONTHLY: '월세', MONTHLY_RENT: '월세', JEONSE: '전세', SALE: '매매' };
 const directionLabels = { NORTH: '북향', SOUTH: '남향', EAST: '동향', WEST: '서향' };
 const searchContractTypes = { 월세: 'MONTHLY', 전세: 'JEONSE' };
+const defaultHouseSearchArea = {
+  page: '0',
+  size: '200',
+  centerLat: '37.583866',
+  centerLng: '127.058777',
+  radius: '1000',
+};
+const unrestrictedHouseSearchLimits = {
+  deposit: 15000,
+  monthlyRent: 100,
+};
 const registryLeaseTypes = { MONTHLY: 'WOLSE', MONTHLY_RENT: 'WOLSE', WOLSE: 'WOLSE', JEONSE: 'JEONSE', 전세: 'JEONSE', 월세: 'WOLSE' };
 const pendingRegistrySubmissionStatuses = new Set(['QUEUED', 'PROCESSING', 'PENDING', 'IN_PROGRESS', 'SUBMITTED']);
 const houseAnalysisStatusLabels = { COMPLETE: 'ANALYZED', COMPLETED: 'ANALYZED', ANALYZED: 'ANALYZED' };
@@ -36,6 +47,12 @@ export function mapHouseToListing(house, index = 0) {
   const direction = directionLabels[house.direction] || house.direction || '정보 없음';
   const registryUpload = buildRegistryUploadFromHouse(house);
   const riskScore = firstFiniteNumber(house.riskScore);
+  // TODO: 실제 시세·치안 점수 응답이 연결되면 임시 기본값을 제거합니다.
+  const marketSafetyScore = firstFiniteNumber(house.marketSafetyScore, house.marketScore) ?? 5;
+  const securitySafetyScore = firstFiniteNumber(house.securitySafetyScore, house.securityScore, house.crimeScore) ?? 5;
+  const isJeonse = house.contractType === 'JEONSE';
+  const depositAmount = house.deposit ?? (isJeonse ? house.price : null);
+  const monthlyRentAmount = house.monthlyRent ?? (!isJeonse ? house.price : null);
 
   return {
     id: String(houseId),
@@ -45,14 +62,16 @@ export function mapHouseToListing(house, index = 0) {
     summary: house.description || '등록된 매물 설명이 없습니다.',
     dealType,
     contractType: house.contractType ?? null,
-    depositAmount: house.deposit ?? null,
-    deposit: formatAmountInManwon(house.deposit) || '정보 없음',
-    rent: formatAmountInManwon(house.monthlyRent),
+    depositAmount,
+    deposit: formatAmountInManwon(depositAmount) || '정보 없음',
+    rent: formatAmountInManwon(monthlyRentAmount),
     address: house.address || '주소 정보 없음',
-    walkingMinutes: null,
-    distance: null,
+    walkingMinutes: house.campusWalkMinutes ?? null,
+    distance: house.campusDistanceMeters ?? null,
     position: fallbackPositions[index % fallbackPositions.length],
     safetyScore: riskScore ?? null,
+    marketSafetyScore,
+    securitySafetyScore,
     marketDiff: '정보 없음',
     marketPrice: formatAmountInManwon(house.price) ? `${formatAmountInManwon(house.price)}만원` : '정보 없음',
     area: house.area ? `${house.area}㎡` : '정보 없음',
@@ -162,16 +181,18 @@ function formatEligibility(value) {
   return '미확인';
 }
 
-function appendManwonPrice(params, key, amount) {
-  if (Number.isFinite(amount)) params.set(key, String(amount * 10000));
+function appendManwonPrice(params, key, amount, unrestrictedLimit) {
+  if (Number.isFinite(amount) && amount < unrestrictedLimit) {
+    params.set(key, String(amount * 10000));
+  }
 }
 
 export function buildHouseSearchParams(filters = {}) {
-  const params = new URLSearchParams({ page: '0', size: '30' });
+  const params = new URLSearchParams(defaultHouseSearchArea);
 
   if (searchContractTypes[filters.dealType]) params.set('contractType', searchContractTypes[filters.dealType]);
-  appendManwonPrice(params, 'maxDeposit', filters.depositLimit);
-  appendManwonPrice(params, 'maxMonthlyRent', filters.rentLimit);
+  appendManwonPrice(params, 'maxDeposit', filters.depositLimit, unrestrictedHouseSearchLimits.deposit);
+  appendManwonPrice(params, 'maxMonthlyRent', filters.rentLimit, unrestrictedHouseSearchLimits.monthlyRent);
 
   if (filters.roomType === '원룸') {
     params.set('minRoomNumber', '1');
@@ -190,6 +211,15 @@ export async function getListings(filters = {}) {
   const params = buildHouseSearchParams(filters);
   const response = await apiRequest(`/api/houses/search?${params}`);
   return (response.content || []).map(mapHouseToListing);
+}
+
+export async function searchHouses(query, topK = 5) {
+  const response = await apiRequest('/api/houses/search', {
+    method: 'POST',
+    body: { query, topK },
+  });
+  const houses = Array.isArray(response) ? response : response?.content || response?.items || response?.data || [];
+  return houses.map(mapHouseToListing);
 }
 
 export async function getListingDetail(listingId) {

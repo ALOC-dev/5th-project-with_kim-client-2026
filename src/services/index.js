@@ -4,3 +4,4 @@ export * from './userService';
 export * from './analysisService';
 export * from './authService';
 export * from './apiClient';
+export * from './businessListingService';

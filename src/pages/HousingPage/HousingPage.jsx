@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { RegistryAnalysisOverlay } from '../../components';
 import { canAutoOpenResidenceVerification, useListingReviews, useListings, useResidenceVerification, useUserPreferences } from '../../hooks';
 import Sidebar from '../../sections/Sidebar';
@@ -50,7 +50,11 @@ export default function HousingPage({ isAuthenticated, userId, username, onRequi
   const [filters, setFilters] = useState(defaultFilters);
   const { listings, isLoading: isListingLoading, error: listingError } = useListings(filters);
   const { reviews: listingReviews, averageRating, isLoading: isReviewsLoading, error: reviewsError, refetch: refetchReviews } = useListingReviews(selectedListing?.id);
-  const shownListings = listings.filter((listing) => matchesFilters(listing, filters));
+  // Keep the same array reference between unrelated renders so the map is not recreated.
+  const shownListings = useMemo(
+    () => listings.filter((listing) => matchesFilters(listing, filters)),
+    [listings, filters],
+  );
   const residenceVerification = useResidenceVerification(isAuthenticated, userId);
   const { preferences, savePreferences, requiredOnboardingMode } = useUserPreferences(userId, isAuthenticated);
 
@@ -107,7 +111,10 @@ export default function HousingPage({ isAuthenticated, userId, username, onRequi
 
   const openOnboarding = (mode = 'all') => setOnboardingMode(mode);
   const closeOnboarding = () => setOnboardingMode(null);
-  const deferOnboarding = () => savePreferences({ onboardingDeferred: true });
+  const deferOnboarding = (changes = {}) => savePreferences({
+    ...changes,
+    onboardingDeferred: true,
+  });
   const handleFavorite = async (id) => {
     if (!isAuthenticated) return onRequireLogin();
     const willFavorite = !favorites.map(String).includes(String(id));
@@ -216,6 +223,18 @@ export default function HousingPage({ isAuthenticated, userId, username, onRequi
     setReviewSubmitError('');
     setIsReviewFormOpen(true);
   };
+  const openVerifiedResidenceReview = async (matchedAddress) => {
+    if (!isAuthenticated) return onRequireLogin();
+    if (!matchedAddress?.houseId) return;
+    const listing = findListingById(matchedAddress.houseId, [selectedListing, ...selectedBuildingListings, ...listings, ...favoriteListings]);
+    const detail = await loadListingDetail(listing || { id: matchedAddress.houseId });
+    if (!detail?.title) return;
+    setActivePage('home');
+    setSelectedBuildingListings([]);
+    setEditingReview(null);
+    setReviewSubmitError('');
+    setIsReviewFormOpen(true);
+  };
   const openReviewEditor = (review) => {
     if (!isAuthenticated) return onRequireLogin();
     setEditingReview(review);
@@ -289,11 +308,11 @@ export default function HousingPage({ isAuthenticated, userId, username, onRequi
     : isListingLoading
       ? '매물 정보를 불러오는 중이에요.'
       : detailError || listingError;
-  const homeContent = <><Topbar mapOnly count={shownListings.length} onOpenFilter={() => setFilterOpen(true)} isAuthenticated={isAuthenticated} username={username} userId={userId} onLogin={onRequireLogin} onLogout={onLogout} />{!verificationDismissed && <ResidenceVerificationBanner verification={residenceVerification} onOpen={openResidenceVerification} onDismiss={() => setVerificationDismissed(true)} />}<div className="housing-page__map"><MapExplorer listings={shownListings} onSelect={handleMapListingSelect} onSelectBuilding={handleBuildingSelect} />{statusMessage && <p className="housing-page__loading">{statusMessage}</p>}{selectedBuildingListings.length > 0 && !selectedListing && <BuildingListingsPanel listings={selectedBuildingListings} onClose={() => setSelectedBuildingListings([])} onSelect={handleBuildingListingSelect} />}{selectedListing && <ListingPreview listing={selectedListing} reviews={listingReviews} averageRating={averageRating} isReviewLoading={isReviewsLoading} reviewsError={reviewsError} currentUserId={userId} registryUpload={registryUploads[selectedListing.id]} isFavorite={favorites.map(String).includes(String(selectedListing.id))} isLocked={!isAuthenticated} onClose={() => setSelectedListing(null)} onFavorite={handleFavorite} onInquiry={handleInquiry} onRequireLogin={onRequireLogin} onWriteReview={openReviewWriter} onEditReview={openReviewEditor} onDeleteReview={handleReviewDelete} onUploadRegistry={handleRegistryUpload} />}</div></>;
+  const homeContent = <><Topbar mapOnly count={shownListings.length} onOpenFilter={() => setFilterOpen(true)} isAuthenticated={isAuthenticated} username={username} userId={userId} onLogin={onRequireLogin} onLogout={onLogout} />{!verificationDismissed && <ResidenceVerificationBanner verification={residenceVerification} onOpen={openResidenceVerification} onReview={openVerifiedResidenceReview} onDismiss={() => setVerificationDismissed(true)} />}<div className="housing-page__map"><MapExplorer listings={shownListings} onSelect={handleMapListingSelect} onSelectBuilding={handleBuildingSelect} />{statusMessage && <p className="housing-page__loading">{statusMessage}</p>}{selectedBuildingListings.length > 0 && !selectedListing && <BuildingListingsPanel listings={selectedBuildingListings} onClose={() => setSelectedBuildingListings([])} onSelect={handleBuildingListingSelect} />}{selectedListing && <ListingPreview listing={selectedListing} reviews={listingReviews} averageRating={averageRating} isReviewLoading={isReviewsLoading} reviewsError={reviewsError} currentUserId={userId} registryUpload={registryUploads[selectedListing.id]} isFavorite={favorites.map(String).includes(String(selectedListing.id))} isLocked={!isAuthenticated} onClose={() => setSelectedListing(null)} onFavorite={handleFavorite} onInquiry={handleInquiry} onRequireLogin={onRequireLogin} onWriteReview={openReviewWriter} onEditReview={openReviewEditor} onDeleteReview={handleReviewDelete} onUploadRegistry={handleRegistryUpload} />}{!filterOpen && !selectedListing && selectedBuildingListings.length === 0 && <ChatAssistant onSelectListing={openDetail} />}</div></>;
   const content = activePage === 'home' ? homeContent : activePage === 'favorites' ? <FavoritesSection listings={favoriteListings} favorites={favorites} isLoading={isFavoritesLoading} error={favoritesError} compareIds={compareIds} onSelect={openDetail} onFavorite={handleFavorite} onCompare={handleCompare} registryUploads={registryUploads} onUploadRegistry={handleRegistryUpload} /> : activePage === 'market' ? <MarketAnalysis listings={listings} /> : activePage === 'checklist' ? <ChecklistSection /> : <ProfileSection preferences={preferences} username={username} onOpenBuildingSettings={() => openOnboarding('building')} onOpenBudgetSettings={() => openOnboarding('budget')} onSavePreferences={savePreferences} />;
 
   const isMapPanelOpen = Boolean(selectedListing || selectedBuildingListings.length);
-  return <main className="housing-page"><Sidebar activePage={activePage} hideRiskGuide={isMapPanelOpen} onNavigate={(page) => { if (!isAuthenticated && page !== 'home') return onRequireLogin(); setActivePage(page); setSelectedListing(null); setIsReviewFormOpen(false); }} onOpenRiskGuide={() => isAuthenticated ? setRiskGuideOpen(true) : onRequireLogin()} /><div className="housing-page__main">{content}</div>{!filterOpen && !isMapPanelOpen && <ChatAssistant />}{filterOpen && <FilterPanel filters={filters} onChange={handleFilterChange} onClose={() => setFilterOpen(false)} onReset={resetFilters} count={shownListings.length} />}{onboardingMode && <OnboardingSection mode={onboardingMode} preferences={preferences} onClose={closeOnboarding} onDefer={deferOnboarding} onSave={savePreferences} />}{riskGuideOpen && <RiskDiagnosisGuide onClose={() => setRiskGuideOpen(false)} onGoToFavorites={openFavoritesFromRiskGuide} />}{isReviewFormOpen && selectedListing && <ReviewFormModal listing={selectedListing} verification={residenceVerification} initialReview={editingReview} isSubmitting={isReviewSubmitting} error={reviewSubmitError} onClose={() => { setIsReviewFormOpen(false); setEditingReview(null); }} onSubmit={handleReviewSubmit} />}{isResidenceVerificationOpen && <ResidenceVerificationModal verification={residenceVerification} onClose={() => setIsResidenceVerificationOpen(false)} onDefer={deferResidenceVerification} onComplete={completeResidenceVerification} onUpload={uploadResidenceVerificationDocument} />}{registryAnalysis && <RegistryAnalysisOverlay status={registryAnalysis.status} />}</main>;
+  return <main className="housing-page"><Sidebar activePage={activePage} hideRiskGuide={isMapPanelOpen} onNavigate={(page) => { if (!isAuthenticated && page !== 'home') return onRequireLogin(); setActivePage(page); setSelectedListing(null); setIsReviewFormOpen(false); }} onOpenRiskGuide={() => isAuthenticated ? setRiskGuideOpen(true) : onRequireLogin()} /><div className="housing-page__main">{content}</div>{filterOpen && <FilterPanel filters={filters} onChange={handleFilterChange} onClose={() => setFilterOpen(false)} onReset={resetFilters} count={shownListings.length} />}{onboardingMode && <OnboardingSection mode={onboardingMode} preferences={preferences} onClose={closeOnboarding} onDefer={deferOnboarding} onSave={savePreferences} />}{riskGuideOpen && <RiskDiagnosisGuide onClose={() => setRiskGuideOpen(false)} onGoToFavorites={openFavoritesFromRiskGuide} />}{isReviewFormOpen && selectedListing && <ReviewFormModal listing={selectedListing} verification={residenceVerification} initialReview={editingReview} isSubmitting={isReviewSubmitting} error={reviewSubmitError} onClose={() => { setIsReviewFormOpen(false); setEditingReview(null); }} onSubmit={handleReviewSubmit} />}{isResidenceVerificationOpen && <ResidenceVerificationModal verification={residenceVerification} onClose={() => setIsResidenceVerificationOpen(false)} onDefer={deferResidenceVerification} onComplete={completeResidenceVerification} onUpload={uploadResidenceVerificationDocument} />}{registryAnalysis && <RegistryAnalysisOverlay status={registryAnalysis.status} />}</main>;
 }
 
 function matchesFilters(listing, filters) {

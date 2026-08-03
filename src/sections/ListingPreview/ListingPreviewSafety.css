@@ -1,0 +1,29 @@
+.listing-preview__safety.is-reassuring header > strong {
+  background: #e7f8f0;
+  color: #0f9c68;
+}
+
+.listing-preview__safety.is-reference header > strong {
+  background: #fff6e5;
+  color: #b7791f;
+}
+
+.listing-preview__safety.is-caution header > strong {
+  background: #fff0e6;
+  color: #c86b14;
+}
+
+.listing-preview__safety-result.is-reassuring {
+  background: #e7f8f0;
+  color: #0f9c68;
+}
+
+.listing-preview__safety-result.is-reference {
+  background: #fff6e5;
+  color: #b7791f;
+}
+
+.listing-preview__safety-result.is-caution {
+  background: #fff0e6;
+  color: #c86b14;
+}

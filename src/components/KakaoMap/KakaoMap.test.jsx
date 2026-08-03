@@ -1,4 +1,4 @@
-import { getListingMarkerColor, getListingMarkerToneClass, normalizeFacilityType } from './KakaoMap';
+import { getListingMarkerColor, getListingMarkerToneClass, getMapInputMode, normalizeFacilityType } from './KakaoMap';
 
 test('월세 매물 마커는 파란색 톤 클래스를 사용한다', () => {
   expect(getListingMarkerToneClass([{ dealType: '월세' }])).toBe('is-monthly');
@@ -20,4 +20,13 @@ test('주변 시설 유형을 지도 토글에서 사용하는 값으로 정규�
   expect(normalizeFacilityType('편의점')).toBe('CONVENIENCE_STORE');
   expect(normalizeFacilityType('subway')).toBe('SUBWAY');
   expect(normalizeFacilityType('streetlight')).toBe('STREETLIGHT');
+});
+
+test('세밀한 포인터 환경을 웹 입력으로 판별한다', () => {
+  const desktopMedia = (query) => ({ matches: query === '(pointer: fine)' });
+  const touchMedia = (query) => ({ matches: query === '(pointer: coarse)' });
+
+  expect(getMapInputMode({ innerWidth: 430, matchMedia: desktopMedia })).toBe('mouse');
+  expect(getMapInputMode({ innerWidth: 430, matchMedia: touchMedia })).toBe('touch');
+  expect(getMapInputMode({ innerWidth: 1280, matchMedia: () => ({ matches: false }) })).toBe('mouse');
 });

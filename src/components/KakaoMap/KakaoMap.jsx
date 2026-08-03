@@ -2,8 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import './KakaoMap.css';
 
 const SDK_ID = 'kakao-map-sdk';
-const CAMPUS_CENTER = { lat: 37.5838, lng: 127.0587 };
-const CAMPUS_AREA_RADIUS_METERS = 650;
+const CAMPUS_CENTER = { lat: 37.583866, lng: 127.058777 };
+const CAMPUS_AREA_RADIUS_METERS = 1000;
 const MARKER_COLORS = {
   monthly: '#3182f6',
   jeonse: '#f59e0b',
@@ -115,6 +115,22 @@ function loadKakaoMapSdk() {
   });
 }
 
+export function getMapInputMode(viewport = typeof window !== 'undefined' ? window : null) {
+  if (!viewport) return 'touch';
+
+  const matchesMedia = (query) => viewport.matchMedia?.(query)?.matches === true;
+  const hasTouchInput = matchesMedia('(pointer: coarse)')
+    || Number(viewport.navigator?.maxTouchPoints || 0) > 0
+    || 'ontouchstart' in viewport;
+
+  // Device Mode can keep a fine pointer query while changing the events to touch.
+  // Prefer the actual touch capability so the map can be rebuilt for the new event model.
+  if (hasTouchInput) return 'touch';
+
+  const hasFinePointer = matchesMedia('(pointer: fine)') || viewport.innerWidth > 760;
+  return hasFinePointer ? 'mouse' : 'touch';
+}
+
 function createHomeMarker(maps, position, title, markerColor) {
   const markerSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="34" height="42" viewBox="0 0 42 52"><path fill="${markerColor}" d="M21 1C10 1 1 9.9 1 21c0 15.1 20 30 20 30s20-14.9 20-30C41 9.9 32 1 21 1Z"/><circle cx="21" cy="21" r="13" fill="white"/><path d="m13.5 21 7.5-6.2 7.5 6.2v8.2a1.7 1.7 0 0 1-1.7 1.7H15.2a1.7 1.7 0 0 1-1.7-1.7V21Z" fill="none" stroke="${markerColor}" stroke-linejoin="round" stroke-width="2.4"/><path d="M18.5 30.5v-5h5v5" fill="none" stroke="${markerColor}" stroke-linejoin="round" stroke-width="2.4"/></svg>`;
   const image = new maps.MarkerImage(
@@ -184,7 +200,36 @@ export default function KakaoMap({ listings = [], facilities = [], onSelect, onS
   const [error, setError] = useState('');
   const [displayedCount, setDisplayedCount] = useState(0);
   const [activeFacilityType, setActiveFacilityType] = useState('CCTV');
+  const [inputMode, setInputMode] = useState(() => getMapInputMode());
   const activeFacilityTypeRef = useRef(activeFacilityType);
+
+  useEffect(() => {
+    const updateInputMode = () => setInputMode(getMapInputMode());
+    const pointerQueries = [
+      window.matchMedia?.('(pointer: fine)'),
+      window.matchMedia?.('(pointer: coarse)'),
+    ].filter(Boolean);
+    const visualViewport = window.visualViewport;
+
+    updateInputMode();
+    pointerQueries.forEach((query) => {
+      if (query.addEventListener) query.addEventListener('change', updateInputMode);
+      else query.addListener?.(updateInputMode);
+    });
+    window.addEventListener('resize', updateInputMode);
+    window.addEventListener('orientationchange', updateInputMode);
+    visualViewport?.addEventListener('resize', updateInputMode);
+
+    return () => {
+      pointerQueries.forEach((query) => {
+        if (query.removeEventListener) query.removeEventListener('change', updateInputMode);
+        else query.removeListener?.(updateInputMode);
+      });
+      window.removeEventListener('resize', updateInputMode);
+      window.removeEventListener('orientationchange', updateInputMode);
+      visualViewport?.removeEventListener('resize', updateInputMode);
+    };
+  }, []);
 
   useEffect(() => {
     onSelectRef.current = onSelect;
@@ -202,6 +247,7 @@ export default function KakaoMap({ listings = [], facilities = [], onSelect, onS
     let active = true;
     const markers = [];
     const overlays = [];
+    let disposeMapResize = () => {};
     setError('');
     setDisplayedCount(0);
 
@@ -209,11 +255,51 @@ export default function KakaoMap({ listings = [], facilities = [], onSelect, onS
       .then((maps) => {
         if (!active || !containerRef.current) return;
 
+        // Kakao Maps has no public destroy method, so remove the previous map DOM before rebuilding it.
+        containerRef.current.replaceChildren();
         const map = new maps.Map(containerRef.current, {
           center: new maps.LatLng(CAMPUS_CENTER.lat, CAMPUS_CENTER.lng),
+          draggable: true,
           level: 4,
         });
         mapRef.current = map;
+        map.setDraggable?.(true);
+
+        const mapCanvas = containerRef.current;
+        const relayoutMap = () => {
+          map.relayout();
+          map.setDraggable?.(true);
+          map.setZoomable?.(true);
+        };
+        const handlePointerDown = (event) => {
+          if (event.pointerType === 'mouse' || event.type === 'mousedown') {
+            mapCanvas.classList.add('is-mouse-input', 'is-dragging');
+          } else {
+            mapCanvas.classList.remove('is-mouse-input', 'is-dragging');
+          }
+        };
+        const handlePointerUp = () => mapCanvas.classList.remove('is-dragging');
+        const handlePointerCancel = () => mapCanvas.classList.remove('is-dragging');
+        mapCanvas.addEventListener('pointerdown', handlePointerDown);
+        mapCanvas.addEventListener('mousedown', handlePointerDown);
+        mapCanvas.addEventListener('pointercancel', handlePointerCancel);
+        window.addEventListener('pointerup', handlePointerUp, { passive: true });
+        window.addEventListener('mouseup', handlePointerUp, { passive: true });
+        const resizeObserver = typeof ResizeObserver !== 'undefined'
+          ? new ResizeObserver(relayoutMap)
+          : null;
+        resizeObserver?.observe(containerRef.current);
+        window.addEventListener('resize', relayoutMap);
+        disposeMapResize = () => {
+          resizeObserver?.disconnect();
+          window.removeEventListener('resize', relayoutMap);
+          mapCanvas.removeEventListener('pointerdown', handlePointerDown);
+          mapCanvas.removeEventListener('mousedown', handlePointerDown);
+          mapCanvas.removeEventListener('pointercancel', handlePointerCancel);
+          window.removeEventListener('pointerup', handlePointerUp);
+          window.removeEventListener('mouseup', handlePointerUp);
+        };
+
         const campusCenter = new maps.LatLng(CAMPUS_CENTER.lat, CAMPUS_CENTER.lng);
         const campusArea = new maps.Circle({
           center: campusCenter,
@@ -329,12 +415,13 @@ export default function KakaoMap({ listings = [], facilities = [], onSelect, onS
 
     return () => {
       active = false;
+      disposeMapResize();
       mapRef.current = null;
       facilityMarkerGroupsRef.current = new Map();
       markers.forEach((marker) => marker.setMap(null));
       overlays.forEach((overlay) => overlay.setMap(null));
     };
-  }, [listings, facilities]);
+  }, [inputMode, listings, facilities]);
 
-  return <div className="kakao-map"><div ref={containerRef} className="kakao-map__canvas" /><div className="kakao-map__facility-controls" aria-label="주변 시설 필터">{FACILITY_TYPES.map((facility) => <button key={facility.key} type="button" className={activeFacilityType === facility.key ? 'is-active' : ''} aria-pressed={activeFacilityType === facility.key} onClick={() => setActiveFacilityType(facility.key)}><span>{facility.icon}</span>{facility.label}</button>)}</div>{listings.length > 0 && <span className="kakao-map__count">지도 매물 {displayedCount}/{listings.length}</span>}{error && <div className="kakao-map__error"><strong>카카오맵 설정 필요</strong><span>{error}</span><code>REACT_APP_KAKAO_MAP_APP_KEY</code></div>}</div>;
+  return <div className="kakao-map"><div ref={containerRef} className={`kakao-map__canvas ${inputMode === 'mouse' ? 'is-mouse-input' : ''}`} /><div className="kakao-map__facility-controls" aria-label="주변 시설 필터">{FACILITY_TYPES.map((facility) => <button key={facility.key} type="button" className={activeFacilityType === facility.key ? 'is-active' : ''} aria-pressed={activeFacilityType === facility.key} onClick={() => setActiveFacilityType(facility.key)}><span>{facility.icon}</span>{facility.label}</button>)}</div>{listings.length > 0 && <span className="kakao-map__count">지도 매물 {displayedCount}/{listings.length}</span>}{error && <div className="kakao-map__error"><strong>카카오맵 설정 필요</strong><span>{error}</span><code>REACT_APP_KAKAO_MAP_APP_KEY</code></div>}</div>;
 }
