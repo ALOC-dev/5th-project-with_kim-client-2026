@@ -11,9 +11,11 @@
 .review-card__rating { margin-top: 2px; }
 .review-card__rating--below { margin: 10px 0 0 60px; }
 .review-card__actions { display: flex; gap: 6px; position: absolute; right: 0; top: 28px; }
-.review-card__actions button { background: #fff; border: 0; border-radius: 8px; cursor: pointer; font-size: 11px; font-weight: 800; padding: 6px 8px; }
-.review-card__actions button:first-child { color: #3182f6; }
-.review-card__actions button:last-child { color: #f04452; }
+.review-card .review-card__action { align-items: center; background: transparent; border: 1px solid currentColor; border-radius: 7px; cursor: pointer; display: inline-flex; height: 30px; justify-content: center; padding: 0; transition: transform 150ms ease; width: 30px; }
+.review-card .review-card__action:hover { background: transparent; transform: translateY(-1px); }
+.review-card__action:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
+.review-card .review-card__action--edit { color: #3182f6; }
+.review-card .review-card__action--delete { color: #f04452; }
 .review-card__text { -webkit-box-orient: vertical; -webkit-line-clamp: 3; color: #333d4b; display: -webkit-box; font-size: 16px; line-height: 1.7; margin: 18px 0 0; max-width: 100%; overflow: hidden; overflow-wrap: anywhere; white-space: normal; word-break: break-word; }
 .review-card__text.is-expanded { -webkit-line-clamp: unset; display: block; }
 .review-card .review-card__more.review-card__more--inline { align-items: flex-start; background: transparent; border: 0; border-radius: 0; box-shadow: none; color: #6b7684; cursor: pointer; display: inline-flex; font-size: 16px; font-weight: 800; justify-content: flex-start; line-height: 1.35; margin: 10px 0 0; min-height: auto; padding: 0; text-align: left; width: auto; }

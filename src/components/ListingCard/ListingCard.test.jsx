@@ -54,3 +54,17 @@ test('찜 목록에서 등기부 분석 대기 중이면 완료로 표시하지 
   expect(screen.getByText('위험도 분석 중')).toBeInTheDocument();
   expect(screen.queryByText(/위험 확인 완료/)).not.toBeInTheDocument();
 });
+
+test('찜 목록의 안전 점수는 상세 화면과 같은 요약 라벨로 보여준다', () => {
+  render(
+    <ListingCard
+      listing={{ ...listing, safetyScore: 54 }}
+      registryUpload={{ submissionId: 'sub_123', status: 'ANALYZED' }}
+      onSelect={jest.fn()}
+      onFavorite={jest.fn()}
+    />,
+  );
+
+  expect(screen.getByText('참고')).toBeInTheDocument();
+  expect(screen.queryByText('안전 54')).not.toBeInTheDocument();
+});

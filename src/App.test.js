@@ -2,6 +2,10 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import App from './App.jsx';
 import { exchangeKakaoCode, getAuthorizationHeader, getCurrentUsername, getKakaoLoginStartUrl, loginBusinessUser } from './services';
 
+jest.mock('./pages/HousingPage', () => function MockHousingPage({ username, userId }) {
+  return <div>{username || `회원 #${userId}`}</div>;
+});
+
 test('renders the Kakao login start page', async () => {
   window.history.replaceState({}, '', '/login');
   render(<App />);
@@ -105,4 +109,25 @@ test('shows the business console after business login succeeds', async () => {
 
   expect(await screen.findByRole('heading', { name: '매물 등록' })).toBeInTheDocument();
   expect(screen.getAllByText('관리자')).toHaveLength(2);
+});
+
+test('restores the signed-in user name from the current user API', async () => {
+  localStorage.clear();
+  localStorage.setItem('sibang.accessToken', 'access-token');
+  localStorage.setItem('sibang.userId', '4');
+  window.history.replaceState({}, '', '/');
+  global.fetch = jest.fn().mockResolvedValue({
+    ok: true,
+    status: 200,
+    json: async () => ({ userId: 4, username: '김정묵', role: 'USER' }),
+  });
+
+  render(<App />);
+
+  expect(await screen.findByText('김정묵')).toBeInTheDocument();
+  expect(localStorage.getItem('sibang.username')).toBe('김정묵');
+  expect(global.fetch).toHaveBeenCalledWith(
+    'https://www.sibang.site/api/users/me',
+    expect.objectContaining({ method: 'GET' }),
+  );
 });

@@ -32,7 +32,7 @@ test('updates my review for the selected house', async () => {
     json: async () => ({ id: 5 }),
   });
 
-  await updateListingReview(7, 5, { cleanlinessRating: 4, managementRating: 4, locationRating: 5, priceRating: 4, text: '수정한 리뷰입니다.' });
+  await updateListingReview(5, { cleanlinessRating: 4, managementRating: 4, locationRating: 5, priceRating: 4, text: '수정한 리뷰입니다.' });
 
   expect(global.fetch).toHaveBeenCalledWith('https://www.sibang.site/api/reviews/5', expect.objectContaining({ method: 'PUT', body: JSON.stringify({ cleanlinessRating: 4, managementRating: 4, locationRating: 5, priceRating: 4, text: '수정한 리뷰입니다.' }) }));
 });
@@ -40,11 +40,11 @@ test('updates my review for the selected house', async () => {
 test('deletes my review for the selected house', async () => {
   global.fetch = jest.fn().mockResolvedValue({
     ok: true,
-    status: 204,
-    json: async () => null,
+    status: 200,
+    text: async () => '',
   });
 
-  await deleteListingReview(7, 5);
+  await expect(deleteListingReview(5)).resolves.toBeNull();
 
   expect(global.fetch).toHaveBeenCalledWith('https://www.sibang.site/api/reviews/5', expect.objectContaining({ method: 'DELETE' }));
 });

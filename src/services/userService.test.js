@@ -104,6 +104,20 @@ test('내 정보 API에서 수업 건물, 예산, 계약 유형, 알림 설정�
   });
 });
 
+test('내 정보 API의 userId를 화면용 id로 정규화한다', async () => {
+  global.fetch = jest.fn().mockResolvedValue({
+    ok: true,
+    status: 200,
+    json: async () => ({ userId: 4, username: '김정묵' }),
+  });
+
+  await expect(getUserProfile()).resolves.toMatchObject({
+    id: 4,
+    userId: 4,
+    username: '김정묵',
+  });
+});
+
 test('내 정보 API의 null 설정값은 온보딩 판정을 위해 그대로 유지한다', async () => {
   global.fetch = jest.fn().mockResolvedValue({
     ok: true,

@@ -55,6 +55,7 @@ export function mapListingReview(review) {
   const ratings = Object.values(ratingValues).filter((value) => value > 0);
   const rating = ratings.length ? ratings.reduce((sum, value) => sum + value, 0) / ratings.length : 0;
   const name = maskUsername(review.username);
+  const imageUrls = [review.imageUrl1, review.imageUrl2, review.imageUrl3].filter(Boolean);
 
   return {
     id: String(review.id),
@@ -65,6 +66,7 @@ export function mapListingReview(review) {
     name,
     rating,
     text: review.text || '등록된 리뷰 내용이 없습니다.',
+    imageUrls,
     residenceLabel: getResidenceLabel(review),
     period: formatCreatedAt(review.createdAt),
   };

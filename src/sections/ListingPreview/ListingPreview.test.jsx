@@ -59,6 +59,31 @@ function dispatchDragEvent(element, type, y) {
   fireEvent(element, event);
 }
 
+test('설정한 학교 건물과 해당 건물까지의 거리를 보여준다', () => {
+  render(
+    <ListingPreview
+      listing={listing}
+      reviews={[]}
+      averageRating={0}
+      isReviewLoading={false}
+      reviewsError=""
+      preferredSchoolBuilding={{ id: '14', name: '정보기술관' }}
+      schoolDistance={{ schoolBuildingId: 14, schoolBuildingName: '정보기술관', distanceMeters: 520 }}
+      isSchoolDistanceLoading={false}
+      isFavorite={false}
+      isLocked={false}
+      onClose={jest.fn()}
+      onFavorite={jest.fn()}
+      onInquiry={jest.fn()}
+      onRequireLogin={jest.fn()}
+      onWriteReview={jest.fn()}
+    />,
+  );
+
+  expect(screen.getByText('정보기술관까지 520m')).toBeInTheDocument();
+  expect(screen.queryByText(/정보대 도보/)).not.toBeInTheDocument();
+});
+
 test('미리보기에서 처음 두 리뷰만 보이고 남은 리뷰를 더보기로 펼친다', () => {
   render(
     <ListingPreview
