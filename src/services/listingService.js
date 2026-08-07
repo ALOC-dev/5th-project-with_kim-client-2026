@@ -10,14 +10,12 @@ const contractTypeLabels = { MONTHLY: '월세', MONTHLY_RENT: '월세', JEONSE: 
 const directionLabels = { NORTH: '북향', SOUTH: '남향', EAST: '동향', WEST: '서향' };
 const searchContractTypes = { 월세: 'MONTHLY', 전세: 'JEONSE' };
 const defaultHouseSearchArea = {
-  page: '0',
-  size: '200',
   centerLat: '37.583866',
   centerLng: '127.058777',
   radius: '1000',
 };
 const unrestrictedHouseSearchLimits = {
-  deposit: 15000,
+  deposit: 30000,
   monthlyRent: 100,
 };
 const registryLeaseTypes = { MONTHLY: 'WOLSE', MONTHLY_RENT: 'WOLSE', WOLSE: 'WOLSE', JEONSE: 'JEONSE', 전세: 'JEONSE', 월세: 'WOLSE' };
@@ -187,12 +185,23 @@ function appendManwonPrice(params, key, amount, unrestrictedLimit) {
   }
 }
 
-export function buildHouseSearchParams(filters = {}) {
-  const params = new URLSearchParams(defaultHouseSearchArea);
+export function buildHouseSearchParams(filters = {}, searchCenter = {}) {
+  const latitude = Number(searchCenter.lat);
+  const longitude = Number(searchCenter.lng);
+  const searchArea = {
+    centerLat: Number.isFinite(latitude) ? String(latitude) : defaultHouseSearchArea.centerLat,
+    centerLng: Number.isFinite(longitude) ? String(longitude) : defaultHouseSearchArea.centerLng,
+    radius: defaultHouseSearchArea.radius,
+  };
+  const params = new URLSearchParams(searchArea);
+  const isMonthly = filters.dealType === '월세';
+  const isJeonse = filters.dealType === '전세';
+  const jeonseLimit = Number.isFinite(filters.jeonseLimit) ? filters.jeonseLimit : filters.depositLimit;
 
   if (searchContractTypes[filters.dealType]) params.set('contractType', searchContractTypes[filters.dealType]);
-  appendManwonPrice(params, 'maxDeposit', filters.depositLimit, unrestrictedHouseSearchLimits.deposit);
-  appendManwonPrice(params, 'maxMonthlyRent', filters.rentLimit, unrestrictedHouseSearchLimits.monthlyRent);
+  if (isMonthly) appendManwonPrice(params, 'maxDeposit', filters.depositLimit, unrestrictedHouseSearchLimits.deposit);
+  if (isJeonse) appendManwonPrice(params, 'maxDeposit', jeonseLimit, unrestrictedHouseSearchLimits.deposit);
+  if (!isJeonse) appendManwonPrice(params, 'maxMonthlyRent', filters.rentLimit, unrestrictedHouseSearchLimits.monthlyRent);
 
   if (filters.roomType === '원룸') {
     params.set('minRoomNumber', '1');
@@ -207,10 +216,11 @@ export function buildHouseSearchParams(filters = {}) {
   return params;
 }
 
-export async function getListings(filters = {}) {
-  const params = buildHouseSearchParams(filters);
+export async function getListings(filters = {}, searchCenter = {}) {
+  const params = buildHouseSearchParams(filters, searchCenter);
   const response = await apiRequest(`/api/houses/search?${params}`);
-  return (response.content || []).map(mapHouseToListing);
+  const houses = Array.isArray(response) ? response : response?.content || [];
+  return houses.map(mapHouseToListing);
 }
 
 export async function searchHouses(query, topK = 5) {
@@ -225,6 +235,16 @@ export async function searchHouses(query, topK = 5) {
 export async function getListingDetail(listingId) {
   const response = await apiRequest(`/api/houses/${listingId}`);
   return mapHouseToListing(response);
+}
+
+export async function getSchoolDistances(listingId) {
+  const response = await apiRequest(`/api/houses/${listingId}/school-distance`);
+  return Array.isArray(response) ? response : [];
+}
+
+export function findSchoolDistanceByBuildingId(distances, buildingId) {
+  if (!Array.isArray(distances) || buildingId === null || buildingId === undefined) return null;
+  return distances.find((distance) => String(distance.schoolBuildingId) === String(buildingId)) || null;
 }
 
 export async function toggleFavorite(listingId, shouldFavorite) {

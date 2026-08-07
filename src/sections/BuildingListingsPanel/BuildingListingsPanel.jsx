@@ -62,7 +62,7 @@ export default function BuildingListingsPanel({ listings, onClose, onSelect }) {
       {listings.map((listing) => <button key={listing.id} type="button" className="building-listings-panel__item" onClick={() => onSelect(listing)}>
         <div className="building-listings-panel__thumbnail"><ListingThumbnail listing={listing} /></div>
         <div className="building-listings-panel__content">
-          <div><StatusBadge>{listing.dealType}</StatusBadge><span>{listing.roomType} · {listing.floor} · {listing.direction}</span></div>
+          <div><StatusBadge tone={listing.dealType === '전세' ? 'orange' : 'blue'}>{listing.dealType}</StatusBadge><span>{listing.roomType} · {listing.floor} · {listing.direction}</span></div>
           <strong>{formatListingPrice(listing)}</strong>
           <p>{listing.area} · {listing.maintenance}</p>
           <small>{listing.summary}</small>

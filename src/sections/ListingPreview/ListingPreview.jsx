@@ -7,6 +7,7 @@ import ReviewCard from '../../components/ReviewCard';
 import { REGISTRY_UPLOAD_IMAGE_ERROR, REGISTRY_UPLOAD_MAX_SIZE_BYTES, REGISTRY_UPLOAD_MAX_SIZE_LABEL, REGISTRY_UPLOAD_SIZE_ERROR, REGISTRY_UPLOAD_TYPE_ERROR } from '../../constants';
 import { formatListingPrice } from '../../utils/price';
 import { canRequestRegistryUpload, getRegistryStatus } from '../../utils/registry';
+import { getSafetySummaryLabel, normalizeSafetyScore } from '../../utils/safety';
 import './ListingPreview.css';
 import './ListingPreviewLock.css';
 import './ListingPreviewReviews.css';
@@ -14,7 +15,7 @@ import './ListingPreviewBack.css';
 import './ListingPreviewDrag.css';
 import './ListingPreviewSafety.css';
 
-export default function ListingPreview({ listing, reviews, averageRating, isReviewLoading, reviewsError, currentUserId, registryUpload, isFavorite, isLocked, onClose, onFavorite, onInquiry, onRequireLogin, onWriteReview, onEditReview, onDeleteReview, onUploadRegistry }) {
+export default function ListingPreview({ listing, reviews, averageRating, isReviewLoading, reviewsError, currentUserId, registryUpload, isFavorite, isLocked, preferredSchoolBuilding, schoolDistance, isSchoolDistanceLoading, onClose, onFavorite, onInquiry, onRequireLogin, onWriteReview, onEditReview, onDeleteReview, onUploadRegistry }) {
   const price = formatListingPrice(listing);
   const isJeonse = listing.dealType === '전세';
   const registryStatus = getRegistryStatus(registryUpload || listing.registryUpload);
@@ -27,6 +28,15 @@ export default function ListingPreview({ listing, reviews, averageRating, isRevi
   const [isDragging, setIsDragging] = useState(false);
   const [showAllReviews, setShowAllReviews] = useState(false);
   const [isRegistryGuideOpen, setIsRegistryGuideOpen] = useState(false);
+  const schoolBuildingName = schoolDistance?.schoolBuildingName || preferredSchoolBuilding?.name;
+  const distanceMeters = Number(schoolDistance?.distanceMeters);
+  const schoolDistanceLabel = !schoolBuildingName
+    ? '학교 건물을 먼저 설정해 주세요'
+    : isSchoolDistanceLoading
+      ? `${schoolBuildingName} 거리 확인 중`
+      : Number.isFinite(distanceMeters)
+        ? `${schoolBuildingName}까지 ${Math.round(distanceMeters).toLocaleString('ko-KR')}m`
+        : `${schoolBuildingName} 거리 정보 없음`;
 
   const handleDragStart = (event) => {
     dragStartY.current = getPointerY(event);
@@ -74,7 +84,7 @@ export default function ListingPreview({ listing, reviews, averageRating, isRevi
       <section className="listing-preview__building"><Icon name="home" size={18} /><div><small>위치</small><b>{listing.title}</b></div></section>
       <div className="listing-preview__specs"><Info icon="room" label="방 유형" value={listing.roomType} /><Info icon="compass" label="방향" value={listing.direction} /><Info icon="area" label="전용면적" value={listing.area} /><Info icon="area" label="공급면적" value={listing.supplyArea} /><Info icon="floor" label="층수" value={listing.floor} /><Info icon="receipt" label="관리비" value={listing.maintenance} /></div>
 
-      <section className="listing-preview__walk"><Icon name="pin" size={18} /><div><small>내가 설정한 건물까지</small><b>정보대 도보 {listing.walkingMinutes}분 {listing.distance}</b></div></section>
+      <section className="listing-preview__walk"><Icon name="pin" size={18} /><div><small>내가 설정한 건물까지</small><b>{schoolDistanceLabel}</b></div></section>
       <SafetyScore listing={listing} isJeonse={isJeonse} registryStatus={registryStatus} />
       <RiskCard listing={listing} registryStatus={registryStatus} onOpenGuide={() => setIsRegistryGuideOpen(true)} canUpload={Boolean(onUploadRegistry)} />
       <NearbyFacilities metadata={listing.metadata} />
@@ -166,13 +176,6 @@ function getScoreOrDefault(value, defaultValue) {
   return score === null ? defaultValue : score;
 }
 
-function normalizeSafetyScore(value) {
-  if (value === null || value === undefined || value === '') return null;
-  const score = Number(value);
-  if (!Number.isFinite(score)) return null;
-  return score > 10 ? score / 10 : score;
-}
-
 function getRegistryScoreFromRisk(listing) {
   const mortgage = listing.risk?.mortgage;
   if (!mortgage || mortgage === '미확인') return null;
@@ -219,15 +222,7 @@ function getSecuritySafetyGuide(score) {
 }
 
 function getSafetyLevelLabel(listing) {
-  const score = normalizeSafetyScore(listing.safetyScore);
-  return getSafetySummaryLabel(score);
-}
-
-function getSafetySummaryLabel(score) {
-  if (score === null) return '준비 중';
-  if (score >= 7) return '안심';
-  if (score >= 5) return '참고';
-  return '주의';
+  return getSafetySummaryLabel(listing.safetyScore);
 }
 
 function getSafetyToneClass(label) {

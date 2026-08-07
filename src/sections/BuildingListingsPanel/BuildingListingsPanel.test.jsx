@@ -34,3 +34,19 @@ test('같은 건물 전세 매물 가격은 월 0 없이 전세금으로 보여�
   expect(screen.getByText('전세금 13,000만원')).toBeInTheDocument();
   expect(screen.queryByText(/월 0/)).not.toBeInTheDocument();
 });
+
+test('같은 건물 목록에서 월세는 파란색이고 전세는 주황색으로 구분한다', () => {
+  render(
+    <BuildingListingsPanel
+      listings={[
+        listings[0],
+        { ...listings[0], id: 2, dealType: '전세', deposit: '13000', rent: '0' },
+      ]}
+      onClose={jest.fn()}
+      onSelect={jest.fn()}
+    />,
+  );
+
+  expect(screen.getByText('월세')).toHaveClass('status-badge--blue');
+  expect(screen.getByText('전세')).toHaveClass('status-badge--orange');
+});

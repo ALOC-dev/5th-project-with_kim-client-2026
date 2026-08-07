@@ -57,7 +57,13 @@ export function normalizeUserProfile(response) {
     source.notificationEnabled,
   );
 
-  ['id', 'loginId', 'username', 'department', 'role'].forEach((key) => {
+  const userId = source.userId ?? source.id;
+  if (userId !== undefined && userId !== null) {
+    profile.id = userId;
+    profile.userId = userId;
+  }
+
+  ['loginId', 'username', 'department', 'role'].forEach((key) => {
     if (hasOwn(source, key)) profile[key] = source[key];
   });
 

@@ -1,4 +1,5 @@
 import { useLayoutEffect, useRef, useState } from 'react';
+import Icon from '../Icon';
 import RatingStars from '../RatingStars';
 import StatusBadge from '../StatusBadge';
 import './ReviewCard.css';
@@ -38,7 +39,7 @@ export default function ReviewCard({ review, isMine = false, onEdit, onDelete })
         {!review.residenceLabel && <div className="review-card__rating"><RatingStars rating={review.rating} compact /></div>}
       </div>
       <span className="review-card__date">{review.period}</span>
-      {isMine && <div className="review-card__actions"><button type="button" onClick={() => onEdit?.(review)} aria-label="리뷰 수정">수정</button><button type="button" onClick={() => onDelete?.(review)} aria-label="리뷰 삭제">삭제</button></div>}
+      {isMine && <div className="review-card__actions"><button type="button" className="review-card__action review-card__action--edit" onClick={() => onEdit?.(review)} aria-label="리뷰 수정" title="리뷰 수정"><Icon name="edit" size={16} /></button><button type="button" className="review-card__action review-card__action--delete" onClick={() => onDelete?.(review)} aria-label="리뷰 삭제" title="리뷰 삭제"><Icon name="trash" size={16} /></button></div>}
     </div>
     {review.residenceLabel && <div className="review-card__rating review-card__rating--below"><RatingStars rating={review.rating} compact /></div>}
     <p id={textId} ref={textRef} className={textClassName}>{review.text}</p>

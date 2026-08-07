@@ -20,6 +20,8 @@ const paths = {
   area: <><rect x="4" y="4" width="16" height="16" rx="1" /><path d="M8 4v4H4M16 20v-4h4" /></>,
   floor: <><path d="M4 7h16v4H4zM4 13h16v4H4z" /><path d="M7 7V4M17 20v-3" /></>,
   receipt: <><path d="M6 3h12v18l-3-2-3 2-3-2-3 2V3Z" /><path d="M9 8h6M9 12h6" /></>,
+  edit: <><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></>,
+  trash: <><path d="M3 6h18" /><path d="M8 6V4h8v2M19 6l-1 14H6L5 6M10 11v5M14 11v5" /></>,
 };
 
 export default function Icon({ name, size = 18, className = '' }) {

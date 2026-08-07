@@ -68,8 +68,16 @@ test('내 리뷰는 강조하고 수정과 삭제 버튼을 제공한다', () =>
 
   expect(screen.getByText('내 리뷰')).toBeInTheDocument();
   expect(screen.getByText('내가 쓴 리뷰입니다.').closest('article')).toHaveClass('is-mine');
-  fireEvent.click(screen.getByRole('button', { name: '리뷰 수정' }));
-  fireEvent.click(screen.getByRole('button', { name: '리뷰 삭제' }));
+  const editButton = screen.getByRole('button', { name: '리뷰 수정' });
+  const deleteButton = screen.getByRole('button', { name: '리뷰 삭제' });
+
+  expect(editButton).toHaveAttribute('title', '리뷰 수정');
+  expect(deleteButton).toHaveAttribute('title', '리뷰 삭제');
+  expect(editButton).toHaveTextContent('');
+  expect(deleteButton).toHaveTextContent('');
+
+  fireEvent.click(editButton);
+  fireEvent.click(deleteButton);
 
   expect(onEdit).toHaveBeenCalledTimes(1);
   expect(onDelete).toHaveBeenCalledTimes(1);

@@ -29,7 +29,13 @@ export default function ReviewFormModal({ listing, verification, initialReview, 
 
   const submitReview = async () => {
     if (!isValid || isSubmitting) return;
-    await onSubmit({ ...ratings, text: text.trim() });
+    const payload = { ...ratings, text: text.trim() };
+    if (isEditing) {
+      payload.imageUrl1 = initialReview.imageUrls?.[0] || null;
+      payload.imageUrl2 = initialReview.imageUrls?.[1] || null;
+      payload.imageUrl3 = initialReview.imageUrls?.[2] || null;
+    }
+    await onSubmit(payload);
   };
   const handleSubmit = (event) => {
     event.preventDefault();

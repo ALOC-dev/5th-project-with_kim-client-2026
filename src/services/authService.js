@@ -64,6 +64,21 @@ function storeLoginResponse(loginResponse, fallbackUsername = '', fallbackRole =
   return { id, username: username || fallbackUsername, accessToken, refreshToken, tokenType, role };
 }
 
+export function storeCurrentUserProfile(profile = {}) {
+  const id = profile.userId ?? profile.id;
+  const { username, role } = profile;
+
+  if (id !== undefined && id !== null) localStorage.setItem(USER_ID_KEY, String(id));
+  if (username) localStorage.setItem(USERNAME_KEY, username);
+  if (role) localStorage.setItem(ROLE_KEY, role);
+
+  return {
+    id: id !== undefined && id !== null ? String(id) : getCurrentUserId(),
+    username: username || getCurrentUsername(),
+    role: role || getCurrentRole(),
+  };
+}
+
 function getRoleFromAccessToken(accessToken) {
   try {
     const payload = accessToken.split('.')[1];

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import HousingPage from './pages/HousingPage';
 import LoginPage from './pages/LoginPage';
 import BusinessPage from './pages/BusinessPage';
-import { exchangeKakaoCode, getCurrentRole, getCurrentUserId, getCurrentUsername, hasAccessToken, isBusinessUser, logout } from './services';
+import { exchangeKakaoCode, getCurrentRole, getCurrentUserId, getCurrentUsername, getUserProfile, hasAccessToken, isBusinessUser, logout, storeCurrentUserProfile } from './services';
 
 export default function App() {
   const [isCheckingSession, setIsCheckingSession] = useState(true);
@@ -13,6 +13,7 @@ export default function App() {
   const [authError, setAuthError] = useState('');
   const [pathname, setPathname] = useState(window.location.pathname);
   const processedAuthorizationCode = useRef(false);
+  const checkedSession = useRef(false);
 
   const navigate = (path) => {
     window.history.pushState({}, '', path);
@@ -21,6 +22,8 @@ export default function App() {
 
   useEffect(() => {
     async function checkSession() {
+      if (checkedSession.current) return;
+      checkedSession.current = true;
       const code = new URLSearchParams(window.location.search).get('code');
       if (code && !processedAuthorizationCode.current) {
         // StrictMode development runs effects twice; exchange each authorization code once.
@@ -35,6 +38,18 @@ export default function App() {
           setPathname('/');
         } catch (error) {
           setAuthError('카카오 로그인 처리에 실패했어요. 다시 시도해 주세요.');
+        }
+      }
+
+      if (hasAccessToken()) {
+        try {
+          const profile = storeCurrentUserProfile(await getUserProfile());
+          setIsAuthenticated(true);
+          setUserId(profile.id);
+          setUsername(profile.username);
+          setRole(profile.role);
+        } catch {
+          // Keep the stored session usable when the optional profile refresh fails.
         }
       }
       setIsCheckingSession(false);

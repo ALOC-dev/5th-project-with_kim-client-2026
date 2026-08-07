@@ -1,4 +1,4 @@
-import { applyRegistrySubmissionToListing, buildHouseSearchParams, buildRegistrySubmissionMetadata, getListingDetail, getListings, getMyWishList, getRegistrySubmission, isRegistrySubmissionPending, pollRegistrySubmission, searchHouses, shouldRefreshListingAfterRegistrySubmission, toggleFavorite, uploadRegistryDocument } from './listingService';
+import { applyRegistrySubmissionToListing, buildHouseSearchParams, buildRegistrySubmissionMetadata, findSchoolDistanceByBuildingId, getListingDetail, getListings, getMyWishList, getRegistrySubmission, getSchoolDistances, isRegistrySubmissionPending, pollRegistrySubmission, searchHouses, shouldRefreshListingAfterRegistrySubmission, toggleFavorite, uploadRegistryDocument } from './listingService';
 
 test('searches houses with the natural-language query and topK', async () => {
   global.fetch = jest.fn().mockResolvedValue({
@@ -16,7 +16,7 @@ test('searches houses with the natural-language query and topK', async () => {
   expect(listings).toMatchObject([{ id: '1', dealType: '월세', address: '서울 동대문구 전농동 295-1' }]);
 });
 
-test('loads houses around the campus through the deployed house search API', async () => {
+test('loads houses within 1km of the configured coordinates without pagination parameters', async () => {
   global.fetch = jest.fn().mockResolvedValue({
     ok: true,
     status: 200,
@@ -25,9 +25,24 @@ test('loads houses around the campus through the deployed house search API', asy
 
   const listings = await getListings();
 
-  expect(global.fetch).toHaveBeenCalledWith('https://www.sibang.site/api/houses/search?page=0&size=200&centerLat=37.583866&centerLng=127.058777&radius=1000', expect.objectContaining({ method: 'GET' }));
+  expect(global.fetch).toHaveBeenCalledWith('https://www.sibang.site/api/houses/search?centerLat=37.583866&centerLng=127.058777&radius=1000', expect.objectContaining({ method: 'GET' }));
   expect(listings).toHaveLength(1);
   expect(listings[0]).toMatchObject({ id: '1', dealType: '월세', deposit: '500', rent: '55', area: '24.2㎡', floor: '3층', roomType: '원룸', direction: '남향', maintenance: '월 6만원', features: ['남향'], marketSafetyScore: 5, securitySafetyScore: 5 });
+});
+
+test('loads houses around the current map center', async () => {
+  global.fetch = jest.fn().mockResolvedValue({
+    ok: true,
+    status: 200,
+    json: async () => [],
+  });
+
+  await getListings({}, { lat: 37.571234, lng: 127.041234 });
+
+  expect(global.fetch).toHaveBeenCalledWith(
+    'https://www.sibang.site/api/houses/search?centerLat=37.571234&centerLng=127.041234&radius=1000',
+    expect.objectContaining({ method: 'GET' }),
+  );
 });
 
 test('uses API safety scores when they are provided instead of example scores', async () => {
@@ -47,13 +62,43 @@ test('converts visible filter values into house search query parameters', () => 
     dealType: '월세', depositLimit: 1000, rentLimit: 60, roomType: '원룸', options: { parking: true },
   });
 
-  expect(params.toString()).toBe('page=0&size=200&centerLat=37.583866&centerLng=127.058777&radius=1000&contractType=MONTHLY&maxDeposit=10000000&maxMonthlyRent=600000&minRoomNumber=1&maxRoomNumber=1&minParking=1');
+  expect(params.toString()).toBe('centerLat=37.583866&centerLng=127.058777&radius=1000&contractType=MONTHLY&maxDeposit=10000000&maxMonthlyRent=600000&minRoomNumber=1&maxRoomNumber=1&minParking=1');
 });
 
 test('omits the unrestricted deposit and rent limits from the house search query', () => {
-  const params = buildHouseSearchParams({ depositLimit: 15000, rentLimit: 100 });
+  const params = buildHouseSearchParams({ depositLimit: 30000, rentLimit: 100 });
 
-  expect(params.toString()).toBe('page=0&size=200&centerLat=37.583866&centerLng=127.058777&radius=1000');
+  expect(params.toString()).toBe('centerLat=37.583866&centerLng=127.058777&radius=1000');
+});
+
+test('sends deposit limits below the 3억원 unrestricted maximum', () => {
+  const params = buildHouseSearchParams({ dealType: '월세', depositLimit: 20000, rentLimit: 100, jeonseLimit: 30000 });
+
+  expect(params.toString()).toBe('centerLat=37.583866&centerLng=127.058777&radius=1000&contractType=MONTHLY&maxDeposit=200000000');
+});
+
+test('uses the separate jeonse limit for jeonse searches', () => {
+  const params = buildHouseSearchParams({ dealType: '전세', depositLimit: 1000, rentLimit: 50, jeonseLimit: 20000 });
+
+  expect(params.toString()).toBe('centerLat=37.583866&centerLng=127.058777&radius=1000&contractType=JEONSE&maxDeposit=200000000');
+});
+
+test('does not send a shared deposit limit when all deal types are selected', () => {
+  const params = buildHouseSearchParams({ dealType: '전체', depositLimit: 1000, rentLimit: 50, jeonseLimit: 20000 });
+
+  expect(params.toString()).toBe('centerLat=37.583866&centerLng=127.058777&radius=1000&maxMonthlyRent=500000');
+});
+
+test('maps a non-paginated house array response', async () => {
+  global.fetch = jest.fn().mockResolvedValue({
+    ok: true,
+    status: 200,
+    json: async () => ([{ houseId: 9, address: '서울 동대문구 이문동', contractType: 'MONTHLY' }]),
+  });
+
+  const listings = await getListings();
+
+  expect(listings).toMatchObject([{ id: '9', address: '서울 동대문구 이문동', dealType: '월세' }]);
 });
 
 test('loads a selected listing through its house detail endpoint', async () => {
@@ -95,6 +140,32 @@ test('loads a selected listing through its house detail endpoint', async () => {
       hug: '불가',
     },
   });
+});
+
+test('loads every school building distance for a selected house', async () => {
+  const response = [
+    { houseId: 7, schoolBuildingId: 14, schoolBuildingName: '정보기술관', distanceMeters: 520 },
+    { houseId: 7, schoolBuildingId: 11, schoolBuildingName: '과학기술관', distanceMeters: 840 },
+  ];
+  global.fetch = jest.fn().mockResolvedValue({
+    ok: true,
+    status: 200,
+    json: async () => response,
+  });
+
+  const distances = await getSchoolDistances('7');
+
+  expect(global.fetch).toHaveBeenCalledWith('https://www.sibang.site/api/houses/7/school-distance', expect.objectContaining({ method: 'GET' }));
+  expect(distances).toEqual(response);
+});
+
+test('finds the distance matching the preferred school building id', () => {
+  const distances = [
+    { schoolBuildingId: 14, schoolBuildingName: '정보기술관', distanceMeters: 520 },
+    { schoolBuildingId: 11, schoolBuildingName: '과학기술관', distanceMeters: 840 },
+  ];
+
+  expect(findSchoolDistanceByBuildingId(distances, '11')).toEqual(distances[1]);
 });
 
 test('adds and removes a wishlist house through wishlist endpoints', async () => {

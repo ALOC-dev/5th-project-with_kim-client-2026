@@ -40,3 +40,15 @@ test('maps ownership and residence metadata from the review response', () => {
     period: '2023년 작성',
   });
 });
+
+test('수정 시 보존할 리뷰 이미지 URL을 변환한다', () => {
+  const review = mapListingReview({
+    id: 8,
+    username: '정수민',
+    imageUrl1: 'https://image.test/1.jpg',
+    imageUrl2: null,
+    imageUrl3: 'https://image.test/3.jpg',
+  });
+
+  expect(review.imageUrls).toEqual(['https://image.test/1.jpg', 'https://image.test/3.jpg']);
+});

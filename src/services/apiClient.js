@@ -20,5 +20,14 @@ export async function apiRequest(path, { method = 'GET', body, headers = {} } = 
   }
 
   if (response.status === 204) return null;
+  if (typeof response.text === 'function') {
+    const responseText = await response.text();
+    if (!responseText) return null;
+    try {
+      return JSON.parse(responseText);
+    } catch {
+      return responseText;
+    }
+  }
   return response.json();
 }

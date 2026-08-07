@@ -8,10 +8,10 @@ export async function createListingReview(listingId, review) {
   return apiRequest(`/api/houses/${listingId}/reviews`, { method: 'POST', body: review });
 }
 
-export async function updateListingReview(listingId, reviewId, review) {
+export async function updateListingReview(reviewId, review) {
   return apiRequest(`/api/reviews/${reviewId}`, { method: 'PUT', body: review });
 }
 
-export async function deleteListingReview(listingId, reviewId) {
+export async function deleteListingReview(reviewId) {
   return apiRequest(`/api/reviews/${reviewId}`, { method: 'DELETE' });
 }

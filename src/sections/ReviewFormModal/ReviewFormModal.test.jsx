@@ -32,7 +32,7 @@ test('리뷰 수정은 기존 점수와 내용을 채운 상태로 시작한다'
     <ReviewFormModal
       listing={listing}
       verification={{ isVerified: true }}
-      initialReview={{ ratings: { cleanlinessRating: 4, managementRating: 3, locationRating: 5, priceRating: 4 }, text: '기존 리뷰입니다.' }}
+      initialReview={{ ratings: { cleanlinessRating: 4, managementRating: 3, locationRating: 5, priceRating: 4 }, text: '기존 리뷰입니다.', imageUrls: ['https://image.test/review-1.jpg'] }}
       isSubmitting={false}
       error=""
       onClose={jest.fn()}
@@ -51,5 +51,8 @@ test('리뷰 수정은 기존 점수와 내용을 채운 상태로 시작한다'
     locationRating: 5,
     priceRating: 4,
     text: '수정한 리뷰입니다.',
+    imageUrl1: 'https://image.test/review-1.jpg',
+    imageUrl2: null,
+    imageUrl3: null,
   });
 });
