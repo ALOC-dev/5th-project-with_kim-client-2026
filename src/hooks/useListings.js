@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
-import { getListings } from '../services';
+import { getCachedListings, readCachedListings } from '../services';
 
 export function useListings(filters, searchCenter) {
-  const [listings, setListings] = useState([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const cachedListings = readCachedListings(filters, searchCenter);
+  const [listings, setListings] = useState(cachedListings || []);
+  const [isLoading, setIsLoading] = useState(!cachedListings);
   const [error, setError] = useState('');
   const filtersKey = JSON.stringify(filters || {});
   const previousFiltersKeyRef = useRef(filtersKey);
@@ -12,12 +13,20 @@ export function useListings(filters, searchCenter) {
     let active = true;
     const filtersChanged = previousFiltersKeyRef.current !== filtersKey;
     previousFiltersKeyRef.current = filtersKey;
+    const cachedListings = readCachedListings(filters, searchCenter);
+
+    if (cachedListings) {
+      setListings(cachedListings);
+      setIsLoading(false);
+      setError('');
+      return () => { active = false; };
+    }
 
     async function loadListings() {
       setIsLoading(true);
       setError('');
       try {
-        const response = await getListings(filters, searchCenter);
+        const response = await getCachedListings(filters, searchCenter);
         if (active) {
           setListings((currentListings) => {
             if (filtersChanged) return response;

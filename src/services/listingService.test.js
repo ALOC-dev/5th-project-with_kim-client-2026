@@ -1,4 +1,42 @@
-import { applyRegistrySubmissionToListing, buildHouseSearchParams, buildRegistrySubmissionMetadata, findSchoolDistanceByBuildingId, getListingDetail, getListings, getMyWishList, getRegistrySubmission, getSchoolDistances, isRegistrySubmissionPending, pollRegistrySubmission, searchHouses, shouldRefreshListingAfterRegistrySubmission, toggleFavorite, uploadRegistryDocument } from './listingService';
+import { applyRegistrySubmissionToListing, buildHouseSearchParams, buildRegistrySubmissionMetadata, findSchoolDistanceByBuildingId, getCachedListingDetail, getCachedListings, getListingDetail, getListingSearchCacheKey, getListings, getMyWishList, getRegistrySubmission, getSchoolDistances, isRegistrySubmissionPending, pollRegistrySubmission, searchHouses, shouldRefreshListingAfterRegistrySubmission, toggleFavorite, uploadRegistryDocument } from './listingService';
+import { clearListingMemoryCache } from './listingMemoryCache';
+
+beforeEach(() => {
+  clearListingMemoryCache();
+});
+
+test('normalizes equivalent search parameters into a stable cache key', () => {
+  const filters = { dealType: '월세', depositLimit: 1000, rentLimit: 60, roomType: '원룸', options: { parking: true } };
+  const center = { lat: 37.583866, lng: 127.058777 };
+
+  expect(getListingSearchCacheKey(filters, center)).toBe(getListingSearchCacheKey({ ...filters }, { ...center }));
+});
+
+test('reuses a cached listing search result', async () => {
+  global.fetch = jest.fn().mockResolvedValue({
+    ok: true,
+    status: 200,
+    json: async () => ({ content: [{ houseId: 1, contractType: 'MONTHLY' }] }),
+  });
+
+  await getCachedListings({}, {});
+  await getCachedListings({}, {});
+
+  expect(global.fetch).toHaveBeenCalledTimes(1);
+});
+
+test('reuses a cached listing detail result for equivalent ids', async () => {
+  global.fetch = jest.fn().mockResolvedValue({
+    ok: true,
+    status: 200,
+    json: async () => ({ houseId: 7, contractType: 'MONTHLY' }),
+  });
+
+  await getCachedListingDetail('7');
+  await getCachedListingDetail(7);
+
+  expect(global.fetch).toHaveBeenCalledTimes(1);
+});
 
 test('searches houses with the natural-language query and topK', async () => {
   global.fetch = jest.fn().mockResolvedValue({

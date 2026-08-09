@@ -18,7 +18,8 @@ import ResidenceVerificationBanner from '../../sections/ResidenceVerificationBan
 import ResidenceVerificationModal from '../../sections/ResidenceVerificationModal';
 import RiskDiagnosisGuide from '../../sections/RiskDiagnosisGuide';
 import { campusBuildings } from '../../constants';
-import { applyRegistrySubmissionToListing, buildRegistrySubmissionMetadata, createListingReview, deleteListingReview, findSchoolDistanceByBuildingId, getListingDetail, getMyWishList, getSchoolDistances, pollRegistrySubmission, shouldRefreshListingAfterRegistrySubmission, toggleFavorite, updateListingReview, uploadRegistryDocument } from '../../services';
+import { applyRegistrySubmissionToListing, buildRegistrySubmissionMetadata, createListingReview, deleteListingReview, findSchoolDistanceByBuildingId, getCachedListingDetail, getListingDetail, getMyWishList, getSchoolDistances, pollRegistrySubmission, readCachedListingDetail, shouldRefreshListingAfterRegistrySubmission, toggleFavorite, updateListingReview, uploadRegistryDocument } from '../../services';
+import { writeListingDetailCache } from '../../services/listingMemoryCache';
 import { getRegistryStatus } from '../../utils/registry';
 import { matchesListingFilters } from '../../utils/listingFilters';
 import { shouldUpdateMapSearchCenter } from '../../utils/mapCenter';
@@ -228,6 +229,7 @@ export default function HousingPage({ isAuthenticated, userId, username, onRequi
     try {
       const detail = await getListingDetail(listingId);
       const analyzedDetail = applyRegistrySubmissionToListing(detail, submission);
+      writeListingDetailCache(analyzedDetail);
       setSelectedListing((current) => String(current?.id) === String(listingId) ? analyzedDetail : current);
       setSelectedBuildingListings((items) => items.map((item) => String(item.id) === String(listingId) ? analyzedDetail : item));
       return analyzedDetail;
@@ -303,10 +305,17 @@ export default function HousingPage({ isAuthenticated, userId, username, onRequi
     }
   };
   const loadListingDetail = async (listing) => {
+    const cachedDetail = readCachedListingDetail(listing.id);
+    if (cachedDetail) {
+      setDetailError('');
+      setSelectedListing(cachedDetail);
+      return cachedDetail;
+    }
+
     setIsDetailLoading(true);
     setDetailError('');
     try {
-      const detail = await getListingDetail(listing.id);
+      const detail = await getCachedListingDetail(listing.id);
       setSelectedListing(detail);
       return detail;
     } catch {

@@ -1,5 +1,11 @@
 import { apiRequest } from './apiClient';
 import { getCurrentUsername } from './authService';
+import {
+  loadListingDetailWithCache,
+  loadListingSearchWithCache,
+  readListingDetailCache,
+  readListingSearchCache,
+} from './listingMemoryCache';
 
 const fallbackPositions = [
   { left: '30%', top: '28%' }, { left: '57%', top: '50%' }, { left: '24%', top: '56%' },
@@ -216,11 +222,24 @@ export function buildHouseSearchParams(filters = {}, searchCenter = {}) {
   return params;
 }
 
+export function getListingSearchCacheKey(filters = {}, searchCenter = {}) {
+  return buildHouseSearchParams(filters, searchCenter).toString();
+}
+
+export function readCachedListings(filters = {}, searchCenter = {}) {
+  return readListingSearchCache(getListingSearchCacheKey(filters, searchCenter));
+}
+
 export async function getListings(filters = {}, searchCenter = {}) {
   const params = buildHouseSearchParams(filters, searchCenter);
   const response = await apiRequest(`/api/houses/search?${params}`);
   const houses = Array.isArray(response) ? response : response?.content || [];
   return houses.map(mapHouseToListing);
+}
+
+export function getCachedListings(filters = {}, searchCenter = {}) {
+  const key = getListingSearchCacheKey(filters, searchCenter);
+  return loadListingSearchWithCache(key, () => getListings(filters, searchCenter));
 }
 
 export async function searchHouses(query, topK = 5) {
@@ -235,6 +254,14 @@ export async function searchHouses(query, topK = 5) {
 export async function getListingDetail(listingId) {
   const response = await apiRequest(`/api/houses/${listingId}`);
   return mapHouseToListing(response);
+}
+
+export function readCachedListingDetail(listingId) {
+  return readListingDetailCache(listingId);
+}
+
+export function getCachedListingDetail(listingId) {
+  return loadListingDetailWithCache(listingId, () => getListingDetail(listingId));
 }
 
 export async function getSchoolDistances(listingId) {
