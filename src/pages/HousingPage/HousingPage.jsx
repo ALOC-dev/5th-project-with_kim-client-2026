@@ -307,6 +307,7 @@ export default function HousingPage({ isAuthenticated, userId, username, onRequi
   const loadListingDetail = async (listing) => {
     const cachedDetail = readCachedListingDetail(listing.id);
     if (cachedDetail) {
+      setIsDetailLoading(false);
       setDetailError('');
       setSelectedListing(cachedDetail);
       return cachedDetail;
