@@ -1,8 +1,9 @@
 import { useLayoutEffect } from 'react';
-import { fireEvent, render, renderHook, screen, waitFor } from '@testing-library/react';
-import { getCachedListingDetail, getCachedListings, readCachedListingDetail, readCachedListings } from '../services';
+import { act, fireEvent, render, renderHook, screen, waitFor } from '@testing-library/react';
+import { applyRegistrySubmissionToListing, getCachedListingDetail, getCachedListings, getListingDetail, pollRegistrySubmission, readCachedListingDetail, readCachedListings, shouldRefreshListingAfterRegistrySubmission, uploadRegistryDocument } from '../services';
 import { useListingReviews, useListings as useHousingPageListings, useResidenceVerification, useUserPreferences } from '../hooks';
 import HousingPage from '../pages/HousingPage/HousingPage';
+import { writeListingDetailCache } from '../services/listingMemoryCache';
 import { useListings } from './useListings';
 
 jest.mock('../services', () => ({
@@ -33,6 +34,10 @@ jest.mock('../hooks', () => ({
   useUserPreferences: jest.fn(),
 }));
 
+jest.mock('../services/listingMemoryCache', () => ({
+  writeListingDetailCache: jest.fn(),
+}));
+
 jest.mock('../sections/MapExplorer', () => ({
   __esModule: true,
   default: ({ listings, onSelect }) => (
@@ -44,18 +49,24 @@ jest.mock('../sections/MapExplorer', () => ({
 
 jest.mock('../sections/ListingPreview/ListingPreview', () => ({
   __esModule: true,
-  default: ({ listing }) => <div data-testid="listing-preview">{listing.id}</div>,
+  default: ({ listing, onClose, onUploadRegistry }) => <div><div data-testid="listing-preview">{listing.id}:{listing.registryUpload?.status || 'UNANALYZED'}</div><button type="button" onClick={onClose}>close listing</button><button type="button" onClick={() => onUploadRegistry(listing.id, {}, {})}>upload registry</button></div>,
 }));
 
 beforeEach(() => {
+  applyRegistrySubmissionToListing.mockReset();
   getCachedListingDetail.mockReset();
   getCachedListings.mockReset();
+  getListingDetail.mockReset();
+  pollRegistrySubmission.mockReset();
   readCachedListingDetail.mockReset();
   readCachedListings.mockReset();
+  shouldRefreshListingAfterRegistrySubmission.mockReset();
+  uploadRegistryDocument.mockReset();
   useHousingPageListings.mockReset();
   useListingReviews.mockReset();
   useResidenceVerification.mockReset();
   useUserPreferences.mockReset();
+  writeListingDetailCache.mockReset();
 });
 
 test('renders a cached search result synchronously without loading', () => {
@@ -189,6 +200,31 @@ test('changed filters replace listings when the new filter search is cached', ()
   expect(getCachedListings).not.toHaveBeenCalled();
 });
 
+test('keeps filter replacement pending across a miss before a cached center result', () => {
+  const centerA = { lat: 37.58, lng: 127.05 };
+  const centerBMiss = { lat: 37.59, lng: 127.06 };
+  const centerBCached = { lat: 37.60, lng: 127.07 };
+  const filtersA = { dealType: '월세' };
+  const filtersB = { dealType: '전세' };
+  readCachedListings.mockImplementation((filters, center) => {
+    if (filters.dealType === '월세') return [{ id: '1', title: '월세 원룸' }];
+    return center.lat === centerBCached.lat ? [{ id: '2', title: '전세 원룸' }] : undefined;
+  });
+  getCachedListings.mockReturnValue(new Promise(() => {}));
+
+  const { result, rerender } = renderHook(
+    ({ filters, center }) => useListings(filters, center),
+    { initialProps: { filters: filtersA, center: centerA } },
+  );
+
+  rerender({ filters: filtersB, center: centerBMiss });
+  rerender({ filters: filtersB, center: centerBCached });
+
+  expect(result.current.listings).toEqual([{ id: '2', title: '전세 원룸' }]);
+  expect(result.current.isLoading).toBe(false);
+  expect(getCachedListings).toHaveBeenCalledTimes(1);
+});
+
 test('rerendering from a pending miss to a cached search is synchronous', () => {
   const pendingCenter = { lat: 37.58, lng: 127.05 };
   const cachedCenter = { lat: 37.59, lng: 127.06 };
@@ -244,3 +280,121 @@ test('clears detail loading when a cached detail follows a pending detail miss',
   expect(screen.getByTestId('listing-preview')).toHaveTextContent('2');
   expect(screen.queryByText('매물 상세 정보를 불러오는 중이에요.')).not.toBeInTheDocument();
 });
+
+test('ignores a stale detail success after a newer cached detail selection', async () => {
+  const firstListing = { id: '1', title: '첫 매물' };
+  const cachedListing = { id: '2', title: '기억한 매물' };
+  let resolveFirstDetail;
+  setupHousingPage([firstListing, cachedListing]);
+  readCachedListingDetail.mockImplementation((listingId) => String(listingId) === '2' ? cachedListing : undefined);
+  getCachedListingDetail.mockReturnValue(new Promise((resolve) => {
+    resolveFirstDetail = resolve;
+  }));
+
+  renderHousingPage();
+  fireEvent.click(screen.getByRole('button', { name: 'open 1' }));
+  fireEvent.click(screen.getByRole('button', { name: 'open 2' }));
+
+  await act(async () => {
+    resolveFirstDetail(firstListing);
+  });
+
+  expect(screen.getByTestId('listing-preview')).toHaveTextContent('2');
+  expect(screen.queryByText('매물 상세 정보를 불러오는 중이에요.')).not.toBeInTheDocument();
+});
+
+test('ignores a stale detail failure after a newer cached detail selection', async () => {
+  const firstListing = { id: '1', title: '첫 매물' };
+  const cachedListing = { id: '2', title: '기억한 매물' };
+  let rejectFirstDetail;
+  setupHousingPage([firstListing, cachedListing]);
+  readCachedListingDetail.mockImplementation((listingId) => String(listingId) === '2' ? cachedListing : undefined);
+  getCachedListingDetail.mockReturnValue(new Promise((_, reject) => {
+    rejectFirstDetail = reject;
+  }));
+
+  renderHousingPage();
+  fireEvent.click(screen.getByRole('button', { name: 'open 1' }));
+  fireEvent.click(screen.getByRole('button', { name: 'open 2' }));
+
+  await act(async () => {
+    rejectFirstDetail(new Error('detail failed'));
+  });
+
+  expect(screen.getByTestId('listing-preview')).toHaveTextContent('2');
+  expect(screen.queryByText('매물 상세 정보를 불러오는 중이에요.')).not.toBeInTheDocument();
+  expect(screen.queryByText('매물 상세 정보를 불러오지 못해 목록 정보를 표시합니다.')).not.toBeInTheDocument();
+});
+
+test('keeps the latest detail miss loading until it resolves out of order', async () => {
+  const firstListing = { id: '1', title: '첫 매물' };
+  const secondListing = { id: '2', title: '두 번째 매물' };
+  let resolveFirstDetail;
+  let resolveSecondDetail;
+  setupHousingPage([firstListing, secondListing]);
+  readCachedListingDetail.mockReturnValue(undefined);
+  getCachedListingDetail.mockImplementation((listingId) => new Promise((resolve) => {
+    if (String(listingId) === '1') resolveFirstDetail = resolve;
+    else resolveSecondDetail = resolve;
+  }));
+
+  renderHousingPage();
+  fireEvent.click(screen.getByRole('button', { name: 'open 1' }));
+  fireEvent.click(screen.getByRole('button', { name: 'open 2' }));
+
+  await act(async () => {
+    resolveFirstDetail(firstListing);
+  });
+
+  expect(screen.getByText('매물 상세 정보를 불러오는 중이에요.')).toBeInTheDocument();
+  expect(screen.queryByTestId('listing-preview')).not.toBeInTheDocument();
+
+  await act(async () => {
+    resolveSecondDetail(secondListing);
+  });
+
+  expect(screen.getByTestId('listing-preview')).toHaveTextContent('2');
+  expect(screen.queryByText('매물 상세 정보를 불러오는 중이에요.')).not.toBeInTheDocument();
+});
+
+test('preserves locally analyzed detail in cache after a failed registry refresh', async () => {
+  const originalListing = { id: '1', title: '첫 매물', registryUpload: { status: 'PENDING' } };
+  let cachedListing = originalListing;
+  setupHousingPage([originalListing]);
+  readCachedListingDetail.mockImplementation(() => cachedListing);
+  writeListingDetailCache.mockImplementation((listing) => {
+    cachedListing = listing;
+  });
+  uploadRegistryDocument.mockResolvedValue({ submissionId: 'submission-1', status: 'QUEUED' });
+  pollRegistrySubmission.mockResolvedValue({ status: 'COMPLETE' });
+  shouldRefreshListingAfterRegistrySubmission.mockReturnValue(true);
+  getListingDetail.mockRejectedValue(new Error('refresh failed'));
+  applyRegistrySubmissionToListing.mockImplementation((listing) => ({
+    ...listing,
+    registryUpload: { status: 'ANALYZED' },
+  }));
+
+  renderHousingPage();
+  fireEvent.click(screen.getByRole('button', { name: 'open 1' }));
+  fireEvent.click(screen.getByRole('button', { name: 'upload registry' }));
+
+  await waitFor(() => expect(writeListingDetailCache).toHaveBeenCalledWith(expect.objectContaining({ registryUpload: { status: 'ANALYZED' } })));
+
+  fireEvent.click(screen.getByRole('button', { name: 'close listing' }));
+  fireEvent.click(screen.getByRole('button', { name: 'open 1' }));
+
+  expect(screen.getByTestId('listing-preview')).toHaveTextContent('ANALYZED');
+});
+
+function setupHousingPage(listings) {
+  useHousingPageListings.mockReturnValue({ listings, isLoading: false, error: '' });
+  useListingReviews.mockReturnValue({
+    reviews: [], averageRating: 0, isLoading: false, error: '', refetch: jest.fn(),
+  });
+  useResidenceVerification.mockReturnValue(null);
+  useUserPreferences.mockReturnValue({ preferences: {}, savePreferences: jest.fn(), requiredOnboardingMode: null });
+}
+
+function renderHousingPage() {
+  return render(<HousingPage isAuthenticated={false} userId="1" username="사용자" onRequireLogin={jest.fn()} onLogout={jest.fn()} />);
+}

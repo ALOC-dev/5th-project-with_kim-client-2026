@@ -8,20 +8,20 @@ export function useListings(filters, searchCenter) {
   const [isLoading, setIsLoading] = useState(!hasCachedListings);
   const [error, setError] = useState('');
   const filtersKey = JSON.stringify(filters || {});
-  const previousFiltersKeyRef = useRef(filtersKey);
-  const filtersChanged = previousFiltersKeyRef.current !== filtersKey;
+  const committedFiltersKeyRef = useRef(filtersKey);
+  const filtersChanged = committedFiltersKeyRef.current !== filtersKey;
   const visibleListings = hasCachedListings
     ? resolveListings(listings, cachedListings, filtersChanged)
     : listings;
 
   useEffect(() => {
     let active = true;
-    const filtersChanged = previousFiltersKeyRef.current !== filtersKey;
-    previousFiltersKeyRef.current = filtersKey;
+    const filtersChanged = committedFiltersKeyRef.current !== filtersKey;
     const cachedListings = readCachedListings(filters, searchCenter);
 
     if (cachedListings !== undefined) {
       setListings((currentListings) => resolveListings(currentListings, cachedListings, filtersChanged));
+      if (filtersChanged) committedFiltersKeyRef.current = filtersKey;
       setIsLoading(false);
       setError('');
       return () => { active = false; };
@@ -34,6 +34,7 @@ export function useListings(filters, searchCenter) {
         const response = await getCachedListings(filters, searchCenter);
         if (active) {
           setListings((currentListings) => resolveListings(currentListings, response, filtersChanged));
+          if (filtersChanged) committedFiltersKeyRef.current = filtersKey;
         }
       } catch (requestError) {
         if (active) setError('매물 정보를 불러오지 못했습니다. 백엔드 서버가 실행 중인지 확인해 주세요.');

@@ -49,6 +49,7 @@ export default function HousingPage({ isAuthenticated, userId, username, onRequi
   const [registryUploads, setRegistryUploads] = useState({});
   const [registryAnalysis, setRegistryAnalysis] = useState(null);
   const registryAnalysisTimerRef = useRef(null);
+  const detailRequestRef = useRef(0);
   const [onboardingMode, setOnboardingMode] = useState(null);
   const [riskGuideOpen, setRiskGuideOpen] = useState(false);
   const [filterOpen, setFilterOpen] = useState(false);
@@ -234,6 +235,8 @@ export default function HousingPage({ isAuthenticated, userId, username, onRequi
       setSelectedBuildingListings((items) => items.map((item) => String(item.id) === String(listingId) ? analyzedDetail : item));
       return analyzedDetail;
     } catch {
+      const cachedDetail = readCachedListingDetail(listingId);
+      if (cachedDetail) writeListingDetailCache(applyRegistrySubmissionToListing(cachedDetail, submission));
       setSelectedListing((current) => String(current?.id) === String(listingId) ? applyRegistrySubmissionToListing(current, submission) : current);
       setSelectedBuildingListings((items) => items.map((item) => String(item.id) === String(listingId) ? applyRegistrySubmissionToListing(item, submission) : item));
       return null;
@@ -305,6 +308,8 @@ export default function HousingPage({ isAuthenticated, userId, username, onRequi
     }
   };
   const loadListingDetail = async (listing) => {
+    const requestId = detailRequestRef.current + 1;
+    detailRequestRef.current = requestId;
     const cachedDetail = readCachedListingDetail(listing.id);
     if (cachedDetail) {
       setIsDetailLoading(false);
@@ -317,15 +322,17 @@ export default function HousingPage({ isAuthenticated, userId, username, onRequi
     setDetailError('');
     try {
       const detail = await getCachedListingDetail(listing.id);
+      if (detailRequestRef.current !== requestId) return null;
       setSelectedListing(detail);
       return detail;
     } catch {
+      if (detailRequestRef.current !== requestId) return null;
       // Keep the list response usable when the detail request is temporarily unavailable.
       setDetailError('매물 상세 정보를 불러오지 못해 목록 정보를 표시합니다.');
       setSelectedListing(listing);
       return listing;
     } finally {
-      setIsDetailLoading(false);
+      if (detailRequestRef.current === requestId) setIsDetailLoading(false);
     }
   };
   const openDetail = async (listing) => {
