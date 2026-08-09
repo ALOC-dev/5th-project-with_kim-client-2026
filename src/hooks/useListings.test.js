@@ -70,6 +70,24 @@ test('renders a cached search result synchronously without loading', () => {
   expect(getCachedListings).not.toHaveBeenCalled();
 });
 
+test('preserves the listings reference for an unchanged cached search across unrelated rerenders', () => {
+  const filters = { dealType: '전체' };
+  const center = { lat: 37.583866, lng: 127.058777 };
+  const cachedListings = [{ id: '1', title: '기억한 매물' }];
+  readCachedListings.mockReturnValue(cachedListings);
+
+  const { result, rerender } = renderHook(
+    ({ unrelatedValue }) => useListings(filters, center),
+    { initialProps: { unrelatedValue: 0 } },
+  );
+  const firstListings = result.current.listings;
+
+  rerender({ unrelatedValue: 1 });
+
+  expect(result.current.listings).toBe(firstListings);
+  expect(getCachedListings).not.toHaveBeenCalled();
+});
+
 test('지도 중심 이동 검색이 빈 결과를 반환해도 기존 매물을 유지한다', async () => {
   getCachedListings
     .mockResolvedValueOnce([{ id: '1', title: '회기 원룸' }])

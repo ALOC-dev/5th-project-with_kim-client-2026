@@ -56,6 +56,12 @@ function resolveListings(currentListings, nextListings, filtersChanged) {
 
 function mergeListingsById(currentListings, nextListings) {
   const listingsById = new Map(currentListings.map((listing) => [String(listing.id), listing]));
-  nextListings.forEach((listing) => listingsById.set(String(listing.id), listing));
-  return Array.from(listingsById.values());
+  let changed = false;
+  nextListings.forEach((listing) => {
+    const id = String(listing.id);
+    if (listingsById.get(id) === listing) return;
+    listingsById.set(id, listing);
+    changed = true;
+  });
+  return changed ? Array.from(listingsById.values()) : currentListings;
 }
