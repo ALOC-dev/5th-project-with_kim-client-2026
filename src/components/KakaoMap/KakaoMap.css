@@ -14,4 +14,22 @@
 .kakao-map__listing-state small { color: #6b7280; font-size: 11px; }
 .kakao-map__spinner { animation: kakao-map-spin .8s linear infinite; border: 3px solid #d8e7fb; border-radius: 50%; border-top-color: #3182f6; height: 20px; width: 20px; }
 @keyframes kakao-map-spin { to { transform: rotate(360deg); } }
+.kakao-map__facility-controls button:disabled { box-shadow: none; cursor: not-allowed; opacity: .45; }
+.kakao-map__facility-legend { align-items: center; background: rgba(25,31,40,.88); border-radius: 8px; color: #fff; display: flex; font-size: 11px; font-weight: 800; gap: 7px; padding: 8px 10px; pointer-events: none; position: absolute; right: 16px; top: 72px; z-index: 3; }
+.kakao-map__facility-legend i { background: rgba(49,130,246,.5); border: 1px solid #60a5fa; border-radius: 50%; display: block; height: 12px; width: 12px; }
+.kakao-map__facility-legend.is-police i { background: rgba(96,165,250,.36); border-color: #2563eb; }
+.kakao-map__police-walk-label { background: #fff; border: 2px solid #2563eb; border-radius: 999px; box-shadow: 0 0 0 2px rgba(255,255,255,.7), 0 3px 10px rgba(37,99,235,.35); color: #1d4ed8; display: block; font-size: 11px; font-weight: 800; padding: 5px 9px; pointer-events: none; white-space: nowrap; }
+.kakao-map__focus-dim-overlay { background: rgba(7,12,23,.62); height: 300vmax; opacity: 0; pointer-events: none; width: 300vmax; }
+.kakao-map.is-facility-focus .kakao-map__focus-dim-overlay { opacity: 1; }
+.kakao-map__zoom-dim { background: rgba(7,12,23,.62); inset: 0; opacity: 0; pointer-events: none; position: absolute; z-index: 2; }
+.kakao-map.is-facility-focus.is-map-zooming .kakao-map__focus-dim-overlay { opacity: 0; }
+.kakao-map.is-facility-focus.is-map-zooming .kakao-map__zoom-dim { opacity: 1; }
+.kakao-map.is-facility-focus .kakao-map__facility-marker { background: #fff; border-width: 4px; box-shadow: 0 0 0 4px rgba(255,255,255,.78), 0 0 20px 10px var(--facility-color); filter: brightness(1.18) saturate(1.18); }
+.kakao-map.is-facility-focus .kakao-map__listing-price,
+.kakao-map.is-facility-focus .kakao-map__listing-cluster { background: #fff; border-width: 3px; box-shadow: 0 0 0 2px rgba(255,255,255,.8), 0 4px 14px rgba(16,24,40,.34); filter: brightness(1.16) saturate(1.2); }
+.kakao-map.is-facility-focus .kakao-map__listing-cluster.is-area-count { background: transparent; border: 0; box-shadow: none; }
+.kakao-map.is-facility-focus .kakao-map__listing-cluster.is-area-count strong { box-shadow: 0 0 0 2px rgba(255,255,255,.8), 0 4px 14px rgba(16,24,40,.34); }
+.kakao-map.is-focus-cctv .kakao-map__facility-controls button.is-active { background: #595bc7; }
+.kakao-map.is-focus-police .kakao-map__facility-controls button.is-active { background: #2563eb; }
+.kakao-map.is-focus-subway .kakao-map__facility-controls button.is-active { background: #7c3aed; }
 @media (max-width: 760px) { .kakao-map__facility-controls { gap: 6px; left: 10px; max-width: calc(100% - 20px); right: 10px; top: 10px; }.kakao-map__facility-controls button { font-size: 11px; padding: 8px 12px; }.kakao-map__count { left: 10px; top: 58px; } }

@@ -5,3 +5,6 @@ export * from './analysisService';
 export * from './authService';
 export * from './apiClient';
 export * from './businessListingService';
+export * from './infrastructureService';
+export * from './neighborhoodPriceService';
+export * from './comparisonService';

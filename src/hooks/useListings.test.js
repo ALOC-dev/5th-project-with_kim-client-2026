@@ -1,6 +1,6 @@
 import { useLayoutEffect } from 'react';
 import { act, fireEvent, render, renderHook, screen, waitFor } from '@testing-library/react';
-import { applyRegistrySubmissionToListing, getCachedListingDetail, getCachedListings, getListingDetail, pollRegistrySubmission, readCachedListingDetail, readCachedListings, shouldRefreshListingAfterRegistrySubmission, uploadRegistryDocument } from '../services';
+import { applyRegistrySubmissionToListing, getCachedListingDetail, getCachedListings, getListingDetail, getMyWishList, pollRegistrySubmission, readCachedListingDetail, readCachedListings, shouldRefreshListingAfterRegistrySubmission, uploadRegistryDocument } from '../services';
 import { useListingReviews, useListings as useHousingPageListings, useResidenceVerification, useUserPreferences } from '../hooks';
 import HousingPage from '../pages/HousingPage/HousingPage';
 import { writeListingDetailCache } from '../services/listingMemoryCache';
@@ -40,11 +40,20 @@ jest.mock('../services/listingMemoryCache', () => ({
 
 jest.mock('../sections/MapExplorer', () => ({
   __esModule: true,
-  default: ({ listings, onSelect }) => (
-    <div>
-      {listings.map((listing) => <button key={listing.id} type="button" onClick={() => onSelect(listing)}>open {listing.id}</button>)}
-    </div>
-  ),
+  default: function MockMapExplorer({ listings, onSelect }) {
+    const React = require('react');
+    React.useEffect(() => {
+      global.__mapExplorerMountCount = (global.__mapExplorerMountCount || 0) + 1;
+      return () => {
+        global.__mapExplorerUnmountCount = (global.__mapExplorerUnmountCount || 0) + 1;
+      };
+    }, []);
+    return (
+      <div>
+        {listings.map((listing) => <button key={listing.id} type="button" onClick={() => onSelect(listing)}>open {listing.id}</button>)}
+      </div>
+    );
+  },
 }));
 
 jest.mock('../sections/ListingPreview/ListingPreview', () => ({
@@ -53,10 +62,14 @@ jest.mock('../sections/ListingPreview/ListingPreview', () => ({
 }));
 
 beforeEach(() => {
+  global.__mapExplorerMountCount = 0;
+  global.__mapExplorerUnmountCount = 0;
   applyRegistrySubmissionToListing.mockReset();
   getCachedListingDetail.mockReset();
   getCachedListings.mockReset();
   getListingDetail.mockReset();
+  getMyWishList.mockReset();
+  getMyWishList.mockResolvedValue([]);
   pollRegistrySubmission.mockReset();
   readCachedListingDetail.mockReset();
   readCachedListings.mockReset();
@@ -67,6 +80,20 @@ beforeEach(() => {
   useResidenceVerification.mockReset();
   useUserPreferences.mockReset();
   writeListingDetailCache.mockReset();
+});
+
+test('keeps the home map mounted while visiting another sidebar page', async () => {
+  setupHousingPage([{ id: '1', title: '기억한 매물' }]);
+
+  render(<HousingPage isAuthenticated userId="1" username="사용자" onRequireLogin={jest.fn()} onLogout={jest.fn()} />);
+  await waitFor(() => expect(getMyWishList).toHaveBeenCalledTimes(1));
+
+  expect(global.__mapExplorerMountCount).toBe(1);
+  fireEvent.click(screen.getByRole('button', { name: '내정보' }));
+  expect(global.__mapExplorerUnmountCount).toBe(0);
+
+  fireEvent.click(screen.getByRole('button', { name: '홈' }));
+  expect(global.__mapExplorerMountCount).toBe(1);
 });
 
 test('renders a cached search result synchronously without loading', () => {
@@ -392,7 +419,7 @@ function setupHousingPage(listings) {
     reviews: [], averageRating: 0, isLoading: false, error: '', refetch: jest.fn(),
   });
   useResidenceVerification.mockReturnValue(null);
-  useUserPreferences.mockReturnValue({ preferences: {}, savePreferences: jest.fn(), requiredOnboardingMode: null });
+  useUserPreferences.mockReturnValue({ preferences: { classBuildingIds: [], leaseTypes: [] }, savePreferences: jest.fn(), requiredOnboardingMode: null });
 }
 
 function renderHousingPage() {
