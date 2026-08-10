@@ -15,10 +15,11 @@ import './ListingPreviewBack.css';
 import './ListingPreviewDrag.css';
 import './ListingPreviewSafety.css';
 
-export default function ListingPreview({ listing, reviews, averageRating, isReviewLoading, reviewsError, currentUserId, registryUpload, isFavorite, isLocked, preferredSchoolBuilding, schoolDistance, isSchoolDistanceLoading, onClose, onFavorite, onInquiry, onRequireLogin, onWriteReview, onEditReview, onDeleteReview, onUploadRegistry }) {
+export default function ListingPreview({ listing, neighborhoodPriceSummary, isNeighborhoodPriceLoading, reviews, averageRating, isReviewLoading, reviewsError, currentUserId, registryUpload, isFavorite, isLocked, preferredSchoolBuilding, schoolDistance, isSchoolDistanceLoading, onClose, onFavorite, onInquiry, onRequireLogin, onWriteReview, onEditReview, onDeleteReview, onUploadRegistry }) {
   const price = formatListingPrice(listing);
   const isJeonse = listing.dealType === '전세';
   const registryStatus = getRegistryStatus(registryUpload || listing.registryUpload);
+  const ownerVerified = isOwnerVerified(listing);
   const safetyLevel = getSafetyLevelLabel(listing);
   const photoSafetyLabel = isLocked ? '로그인 필요' : registryStatus === 'ANALYZED' ? safetyLevel : '분석 전';
   const dragStartY = useRef(null);
@@ -28,6 +29,7 @@ export default function ListingPreview({ listing, reviews, averageRating, isRevi
   const [isDragging, setIsDragging] = useState(false);
   const [showAllReviews, setShowAllReviews] = useState(false);
   const [isRegistryGuideOpen, setIsRegistryGuideOpen] = useState(false);
+  const photoUrl = listing.imageUrls?.[0];
   const schoolBuildingName = schoolDistance?.schoolBuildingName || preferredSchoolBuilding?.name;
   const distanceMeters = Number(schoolDistance?.distanceMeters);
   const schoolDistanceLabel = !schoolBuildingName
@@ -70,16 +72,16 @@ export default function ListingPreview({ listing, reviews, averageRating, isRevi
   <aside className={`listing-preview ${isLocked ? 'is-locked' : ''} ${isDragging ? 'is-dragging' : ''} ${sheetOffset > 0 ? 'is-peeked' : ''}`} style={{ transform: `translateY(${sheetOffset}px)` }}>
     <div className="listing-preview__drag-handle" aria-label="매물 상세 패널 높이 조절" onPointerDown={handleDragStart} onPointerMove={handleDragMove} onPointerUp={handleDragEnd} onPointerCancel={handleDragEnd} />
     <div className="listing-preview__photo">
-      <span>{listing.title.slice(0, 1)}</span>
+      {photoUrl ? <img src={photoUrl} alt={listing.title} /> : <span>{listing.title.slice(0, 1)}</span>}
       <button className="listing-preview__back" onClick={onClose} aria-label="이전 화면으로 돌아가기"><Icon name="back" size={20} /></button>
       <StatusBadge>{photoSafetyLabel}</StatusBadge>
     </div>
 
     <div className="listing-preview__body">
-      <div className="listing-preview__tags"><StatusBadge tone="green">집주인 인증</StatusBadge><StatusBadge>{listing.dealType}</StatusBadge></div>
+      <div className="listing-preview__tags"><StatusBadge tone={ownerVerified ? 'green' : 'gray'}>{ownerVerified ? '집주인 인증' : '집주인 미인증'}</StatusBadge><StatusBadge>{listing.dealType}</StatusBadge></div>
       <h2>{price}</h2>
       <p className="listing-preview__summary">{listing.summary}</p>
-      <em>시세 대비 {listing.marketDiff} · 인근 시세 {listing.marketPrice}</em>
+      <MarketComparison summary={neighborhoodPriceSummary} isLoading={isNeighborhoodPriceLoading} />
 
       <section className="listing-preview__building"><Icon name="home" size={18} /><div><small>위치</small><b>{listing.title}</b></div></section>
       <div className="listing-preview__specs"><Info icon="room" label="방 유형" value={listing.roomType} /><Info icon="compass" label="방향" value={listing.direction} /><Info icon="area" label="전용면적" value={listing.area} /><Info icon="area" label="공급면적" value={listing.supplyArea} /><Info icon="floor" label="층수" value={listing.floor} /><Info icon="receipt" label="관리비" value={listing.maintenance} /></div>
@@ -94,7 +96,7 @@ export default function ListingPreview({ listing, reviews, averageRating, isRevi
     </div>
 
     <footer>
-      <button className={isFavorite ? 'is-favorite' : ''} onClick={() => onFavorite(listing.id)}><span>♥</span><small>찜</small></button>
+      <button className={`listing-preview__favorite${isFavorite ? ' is-favorite' : ''}`} aria-label="찜" aria-pressed={isFavorite} onClick={() => onFavorite(listing.id)}><Icon name="heart" size={20} /><small>찜</small></button>
       <button onClick={() => window.alert('전화 문의는 중개사 연결 API 연동 후 제공됩니다.')}><Icon name="phone" size={18} /><small>전화</small></button>
       <button className="listing-preview__inquiry" onClick={() => onInquiry(listing)}><Icon name="message" size={18} />문자 문의</button>
     </footer>
@@ -116,6 +118,16 @@ function getPointerY(event) {
 
 function Info({ icon, label, value }) {
   return <div><Icon name={icon} size={18} /><div><small>{label}</small><b>{value}</b></div></div>;
+}
+
+function MarketComparison({ summary, isLoading }) {
+  if (isLoading) return <em className="listing-preview__market is-loading">인근 시세 확인 중</em>;
+  if (!summary) return <em className="listing-preview__market is-empty">인근 시세 정보 없음</em>;
+  return <em className="listing-preview__market"><span>시세 대비 {summary.differenceLabel}</span><span>인근 시세 {summary.marketPriceLabel}</span></em>;
+}
+
+function isOwnerVerified(listing) {
+  return listing.ownerVerified === true || String(listing.ownerVerificationStatus || '').toUpperCase() === 'VERIFIED';
 }
 
 function isMyReview(review, currentUserId) {

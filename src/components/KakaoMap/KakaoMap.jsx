@@ -1,23 +1,20 @@
 import { useEffect, useRef, useState } from 'react';
 import dongBoundaries from '../../constants/dongBoundaries.json';
+import { INFRASTRUCTURE_CATEGORIES } from '../../constants/infrastructures';
 import { formatMapPrice } from '../../utils/price';
 import './KakaoMap.css';
 
 const SDK_ID = 'kakao-map-sdk';
 const CAMPUS_CENTER = { lat: 37.583866, lng: 127.058777 };
 const CAMPUS_AREA_RADIUS_METERS = 1000;
+const FACILITY_VISIBLE_MAX_LEVELS = { CCTV: 2, POLICE: 3, SUBWAY: 2 };
 const WALKING_METERS_PER_MINUTE = 80;
+const POLICE_ACCESS_RADIUS_METERS = 300;
+const POLICE_ACCESS_WALKING_MINUTES = Math.ceil(POLICE_ACCESS_RADIUS_METERS / WALKING_METERS_PER_MINUTE);
 const CAMPUS_GATES = [
   { name: '정문', latitude: 37.583698, longitude: 127.053856 },
   { name: '후문', latitude: 37.585197, longitude: 127.060951 },
   { name: '쪽문', latitude: 37.5861, longitude: 127.0570 },
-];
-const FACILITY_TYPES = [
-  { key: 'CCTV', label: 'CCTV', icon: '📹', color: '#3182f6' },
-  { key: 'POLICE', label: '경찰서', icon: '🚓', color: '#ef4444' },
-  { key: 'CONVENIENCE_STORE', label: '편의점', icon: '🏪', color: '#22a06b' },
-  { key: 'SUBWAY', label: '지하철', icon: '🚇', color: '#8b5cf6' },
-  { key: 'STREETLIGHT', label: '가로등', icon: '💡', color: '#f59e0b' },
 ];
 const FACILITY_TYPE_ALIASES = {
   CCTV: 'CCTV', CAMERA: 'CCTV', CCTVS: 'CCTV', '씨씨티비': 'CCTV',
@@ -77,13 +74,55 @@ function normalizeFacility(facility) {
 }
 
 function createFacilityMarker(maps, position, facility) {
-  const facilityType = FACILITY_TYPES.find((item) => item.key === facility.type) || FACILITY_TYPES[0];
+  const facilityType = INFRASTRUCTURE_CATEGORIES.find((item) => item.key === facility.type) || INFRASTRUCTURE_CATEGORIES[0];
   const element = document.createElement('span');
   element.className = 'kakao-map__facility-marker';
   element.style.setProperty('--facility-color', facilityType.color);
   element.title = facility.name || facilityType.label;
   element.textContent = facilityType.icon;
   return new maps.CustomOverlay({ position, content: element, xAnchor: 0.5, yAnchor: 0.5, zIndex: 3 });
+}
+
+function createFocusDimOverlay(maps, map) {
+  const element = document.createElement('div');
+  element.className = 'kakao-map__focus-dim-overlay';
+  const overlay = new maps.CustomOverlay({
+    position: map.getCenter(),
+    content: element,
+    xAnchor: 0.5,
+    yAnchor: 0.5,
+    zIndex: 2,
+  });
+  overlay.setMap(map);
+  return overlay;
+}
+
+function createPoliceAccessibilityZone(maps, position) {
+  return new maps.Circle({
+    center: position,
+    radius: POLICE_ACCESS_RADIUS_METERS,
+    strokeWeight: 1,
+    strokeColor: '#2563eb',
+    strokeOpacity: 0.5,
+    strokeStyle: 'solid',
+    fillColor: '#60a5fa',
+    fillOpacity: 0.12,
+    zIndex: 1,
+  });
+}
+
+function createPoliceWalkLabel(maps, latitude, longitude) {
+  const element = document.createElement('span');
+  element.className = 'kakao-map__police-walk-label';
+  element.textContent = `경찰서 도보 약 ${POLICE_ACCESS_WALKING_MINUTES}분`;
+  const latitudeOffset = POLICE_ACCESS_RADIUS_METERS / 111320;
+  return new maps.CustomOverlay({
+    position: new maps.LatLng(latitude - latitudeOffset, longitude),
+    content: element,
+    xAnchor: 0.5,
+    yAnchor: 0.5,
+    zIndex: 4,
+  });
 }
 
 function resolveFacilityPosition(maps, geocoder, facility) {
@@ -314,7 +353,7 @@ function formatMarkerAmount(value) {
 
 function getRentSummary(listings) {
   const lowestMonthlyRent = getLowestMonthlyRent(listings);
-  if (lowestMonthlyRent !== null) return `최저 ${formatMarkerAmount(lowestMonthlyRent)}`;
+  if (lowestMonthlyRent !== null) return `최저 월세 ${formatMarkerAmount(lowestMonthlyRent)}`;
   const jeonseCount = listings.filter((listing) => listing.dealType === '전세').length;
   return jeonseCount > 0 ? `전세 ${jeonseCount}개` : `${listings.length}개`;
 }
@@ -332,7 +371,7 @@ function getRepresentativeListing(listings) {
 function getBuildingPriceLabel(listings) {
   const representativeListing = getRepresentativeListing(listings);
   if (!representativeListing) return `${listings.length}개`;
-  const price = formatMapPrice(representativeListing).replace(/^월세\s*/, '');
+  const price = formatMapPrice(representativeListing);
   return listings.length > 1 ? `${listings.length}개 · ${price}~` : price;
 }
 
@@ -368,7 +407,7 @@ function createListingClusterOverlay(maps, position, cluster, stage, onSelect, o
   element.type = 'button';
   if (stage === 'area-count') appendParts(element, [`${cluster.areaName || '기타'} · ${getClusterLabel(cluster.listings)}개`]);
   const nearestGate = getNearestCampusGate(cluster.groups || [cluster]);
-  const nearestGateLabel = nearestGate ? `${nearestGate.name} ${nearestGate.walkingMinutes}분` : '거리 정보 없음';
+  const nearestGateLabel = nearestGate ? `최소 ${nearestGate.name} ${nearestGate.walkingMinutes}분` : '거리 정보 없음';
   if (stage === 'area-summary') {
     appendParts(element, [`${cluster.areaName || '기타'} · ${getClusterLabel(cluster.listings)}개`, nearestGateLabel]);
   }
@@ -415,7 +454,15 @@ function hideFacilityMarkers(markerGroups) {
   markerGroups?.forEach((markers) => markers.forEach((marker) => marker.setMap(null)));
 }
 
-export default function KakaoMap({ listings = [], facilities = [], isLoading = false, onSelectBuilding, onCenterChange }) {
+function syncFacilityMarkerVisibility(markerGroups, map, activeFacilityType) {
+  const mapLevel = map?.getLevel?.() ?? Infinity;
+  markerGroups?.forEach((markers, type) => {
+    const maxVisibleLevel = FACILITY_VISIBLE_MAX_LEVELS[type] ?? 2;
+    markers.forEach((marker) => marker.setMap(mapLevel <= maxVisibleLevel && type === activeFacilityType ? map : null));
+  });
+}
+
+export default function KakaoMap({ listings = [], facilities = [], isLoading = false, onSelectBuilding, onCenterChange, onFacilityTypeChange }) {
   const containerRef = useRef(null);
   const onSelectBuildingRef = useRef(onSelectBuilding);
   const onCenterChangeRef = useRef(onCenterChange);
@@ -430,10 +477,13 @@ export default function KakaoMap({ listings = [], facilities = [], isLoading = f
   const [error, setError] = useState('');
   const [displayedCount, setDisplayedCount] = useState(0);
   const [mapReadyVersion, setMapReadyVersion] = useState(0);
+  const [currentMapLevel, setCurrentMapLevel] = useState(5);
+  const [isMapZooming, setIsMapZooming] = useState(false);
   const [isPropertyLayerLoading, setIsPropertyLayerLoading] = useState(false);
-  const [activeFacilityType, setActiveFacilityType] = useState('CCTV');
+  const [activeFacilityType, setActiveFacilityType] = useState(null);
   const [inputMode, setInputMode] = useState(() => getMapInputMode());
   const activeFacilityTypeRef = useRef(activeFacilityType);
+  const isMapZoomingRef = useRef(false);
 
   useEffect(() => {
     const updateInputMode = () => setInputMode(getMapInputMode());
@@ -470,9 +520,7 @@ export default function KakaoMap({ listings = [], facilities = [], isLoading = f
 
   useEffect(() => {
     activeFacilityTypeRef.current = activeFacilityType;
-    facilityMarkerGroupsRef.current.forEach((markers, type) => {
-      markers.forEach((marker) => marker.setMap(type === activeFacilityType ? mapRef.current : null));
-    });
+    syncFacilityMarkerVisibility(facilityMarkerGroupsRef.current, mapRef.current, activeFacilityType);
   }, [activeFacilityType]);
 
   useEffect(() => {
@@ -497,6 +545,9 @@ export default function KakaoMap({ listings = [], facilities = [], isLoading = f
         });
         mapRef.current = map;
         mapsRef.current = maps;
+        setCurrentMapLevel(map.getLevel?.() ?? 5);
+        const focusDimOverlay = createFocusDimOverlay(maps, map);
+        mapOverlays.push(focusDimOverlay);
         const geocoder = new maps.services.Geocoder();
         geocoderRef.current = geocoder;
         map.setDraggable?.(true);
@@ -513,7 +564,12 @@ export default function KakaoMap({ listings = [], facilities = [], isLoading = f
           const nextCenter = getCurrentMapCenter();
           preservedCenterRef.current = nextCenter;
           preservedLevelRef.current = map.getLevel?.() ?? preservedLevelRef.current;
+          focusDimOverlay.setPosition?.(map.getCenter());
           refreshPropertyMarkersRef.current();
+          if (isMapZoomingRef.current) {
+            isMapZoomingRef.current = false;
+            setIsMapZooming(false);
+          }
         };
         const handleMapDragEnd = () => {
           const nextCenter = getCurrentMapCenter();
@@ -638,14 +694,22 @@ export default function KakaoMap({ listings = [], facilities = [], isLoading = f
           });
         };
 
+        const handleMapZoomStart = () => {
+          isMapZoomingRef.current = true;
+          setIsMapZooming(true);
+        };
         const handleMapZoomChanged = () => {
           preservedLevelRef.current = map.getLevel?.() ?? preservedLevelRef.current;
+          setCurrentMapLevel(preservedLevelRef.current);
           refreshPropertyMarkersRef.current();
+          syncFacilityMarkerVisibility(facilityMarkerGroupsRef.current, map, activeFacilityTypeRef.current);
         };
+        maps.event.addListener(map, 'zoom_start', handleMapZoomStart);
         maps.event.addListener(map, 'zoom_changed', handleMapZoomChanged);
         const previousDisposeMapResize = disposeMapResize;
         disposeMapResize = () => {
           previousDisposeMapResize();
+          maps.event.removeListener(map, 'zoom_start', handleMapZoomStart);
           maps.event.removeListener(map, 'zoom_changed', handleMapZoomChanged);
         };
         const setCampusFilter = (nextActive) => {
@@ -680,6 +744,7 @@ export default function KakaoMap({ listings = [], facilities = [], isLoading = f
       propertyLayerRef.current = createEmptyPropertyLayer();
       refreshPropertyMarkersRef.current = () => {};
       facilityMarkerGroupsRef.current = new Map();
+      isMapZoomingRef.current = false;
     };
   }, [inputMode]);
 
@@ -752,15 +817,17 @@ export default function KakaoMap({ listings = [], facilities = [], isLoading = f
             coordinates.add(coordinateKey);
             const marker = createFacilityMarker(maps, new maps.LatLng(latitude, longitude), facility);
             const markersForType = nextMarkerGroups.get(facility.type) || [];
+            if (facility.type === 'POLICE') {
+              markersForType.push(createPoliceAccessibilityZone(maps, new maps.LatLng(latitude, longitude)));
+              markersForType.push(createPoliceWalkLabel(maps, latitude, longitude));
+            }
             markersForType.push(marker);
             nextMarkerGroups.set(facility.type, markersForType);
           });
 
         const previousMarkerGroups = facilityMarkerGroupsRef.current;
         facilityMarkerGroupsRef.current = nextMarkerGroups;
-        nextMarkerGroups.forEach((markers, type) => {
-          markers.forEach((marker) => marker.setMap(type === activeFacilityTypeRef.current ? map : null));
-        });
+        syncFacilityMarkerVisibility(nextMarkerGroups, map, activeFacilityTypeRef.current);
         hideFacilityMarkers(previousMarkerGroups);
       });
 
@@ -776,6 +843,19 @@ export default function KakaoMap({ listings = [], facilities = [], isLoading = f
     : listings.length === 0
       ? '이 지역에는 매물이 없습니다'
       : '';
+  const handleFacilityTypeSelect = (facilityType) => {
+    const nextFacilityType = activeFacilityType === facilityType ? null : facilityType;
+    setActiveFacilityType(nextFacilityType);
+    onFacilityTypeChange?.(nextFacilityType);
+  };
+  const activeFacilityMaxLevel = FACILITY_VISIBLE_MAX_LEVELS[activeFacilityType] ?? -1;
+  const isFacilityFocusMode = Boolean(activeFacilityType) && currentMapLevel <= activeFacilityMaxLevel;
+  const mapClassName = [
+    'kakao-map',
+    isFacilityFocusMode ? 'is-facility-focus' : '',
+    isFacilityFocusMode ? `is-focus-${activeFacilityType.toLowerCase()}` : '',
+    isMapZooming ? 'is-map-zooming' : '',
+  ].filter(Boolean).join(' ');
 
-  return <div className="kakao-map"><div ref={containerRef} className={`kakao-map__canvas ${inputMode === 'mouse' ? 'is-mouse-input' : ''}`} /><div className="kakao-map__facility-controls" aria-label="주변 시설 필터">{FACILITY_TYPES.map((facility) => <button key={facility.key} type="button" className={activeFacilityType === facility.key ? 'is-active' : ''} aria-pressed={activeFacilityType === facility.key} onClick={() => setActiveFacilityType(facility.key)}><span>{facility.icon}</span>{facility.label}</button>)}</div>{listings.length > 0 && <span className="kakao-map__count">지도 매물 {displayedCount}/{listings.length}</span>}{listingStateMessage && <div className="kakao-map__listing-state" role="status">{isListingStateLoading && <span className="kakao-map__spinner" aria-hidden="true" />}<b>{listingStateMessage}</b>{!isListingStateLoading && <small>지도를 이동하거나 필터를 변경해 보세요.</small>}</div>}{error && <div className="kakao-map__error"><strong>카카오맵 설정 필요</strong><span>{error}</span><code>REACT_APP_KAKAO_MAP_APP_KEY</code></div>}</div>;
+  return <div className={mapClassName}><div ref={containerRef} className={`kakao-map__canvas ${inputMode === 'mouse' ? 'is-mouse-input' : ''}`} /><div className="kakao-map__zoom-dim" aria-hidden="true" /><div className="kakao-map__facility-controls" aria-label="주변 시설 필터">{INFRASTRUCTURE_CATEGORIES.map((facility) => <button key={facility.key} type="button" className={activeFacilityType === facility.key ? 'is-active' : ''} aria-pressed={activeFacilityType === facility.key} disabled={!facility.enabled} title={facility.enabled ? `${facility.label} 표시` : `${facility.label} 준비 중`} onClick={() => handleFacilityTypeSelect(facility.key)}><span>{facility.icon}</span>{facility.label}</button>)}</div>{activeFacilityType === 'CCTV' && currentMapLevel <= FACILITY_VISIBLE_MAX_LEVELS.CCTV && <span className="kakao-map__facility-legend"><i aria-hidden="true" />CCTV 위치 강조</span>}{activeFacilityType === 'POLICE' && currentMapLevel <= FACILITY_VISIBLE_MAX_LEVELS.POLICE && <span className="kakao-map__facility-legend is-police"><i aria-hidden="true" />경찰서 접근권 · 약 {POLICE_ACCESS_WALKING_MINUTES}분</span>}{listings.length > 0 && <span className="kakao-map__count">지도 매물 {displayedCount}/{listings.length}</span>}{listingStateMessage && <div className="kakao-map__listing-state" role="status">{isListingStateLoading && <span className="kakao-map__spinner" aria-hidden="true" />}<b>{listingStateMessage}</b>{!isListingStateLoading && <small>지도를 이동하거나 필터를 변경해 보세요.</small>}</div>}{error && <div className="kakao-map__error"><strong>카카오맵 설정 필요</strong><span>{error}</span><code>REACT_APP_KAKAO_MAP_APP_KEY</code></div>}</div>;
 }

@@ -18,7 +18,8 @@ import ResidenceVerificationBanner from '../../sections/ResidenceVerificationBan
 import ResidenceVerificationModal from '../../sections/ResidenceVerificationModal';
 import RiskDiagnosisGuide from '../../sections/RiskDiagnosisGuide';
 import { campusBuildings } from '../../constants';
-import { applyRegistrySubmissionToListing, buildRegistrySubmissionMetadata, createListingReview, deleteListingReview, findSchoolDistanceByBuildingId, getListingDetail, getMyWishList, getSchoolDistances, pollRegistrySubmission, shouldRefreshListingAfterRegistrySubmission, toggleFavorite, updateListingReview, uploadRegistryDocument } from '../../services';
+import { applyRegistrySubmissionToListing, buildNeighborhoodPriceSummary, buildRegistrySubmissionMetadata, createListingReview, deleteListingReview, findSchoolDistanceByBuildingId, getCachedListingDetail, getCachedNeighborhoodPriceStatistics, getListingDetail, getMyWishList, getSchoolDistances, pollRegistrySubmission, readCachedListingDetail, shouldRefreshListingAfterRegistrySubmission, toggleFavorite, updateListingReview, uploadRegistryDocument } from '../../services';
+import { writeListingDetailCache } from '../../services/listingMemoryCache';
 import { getRegistryStatus } from '../../utils/registry';
 import { matchesListingFilters } from '../../utils/listingFilters';
 import { shouldUpdateMapSearchCenter } from '../../utils/mapCenter';
@@ -33,6 +34,8 @@ export default function HousingPage({ isAuthenticated, userId, username, onRequi
   const [selectedListing, setSelectedListing] = useState(null);
   const [selectedSchoolDistance, setSelectedSchoolDistance] = useState(null);
   const [isSchoolDistanceLoading, setIsSchoolDistanceLoading] = useState(false);
+  const [neighborhoodPriceSummary, setNeighborhoodPriceSummary] = useState(null);
+  const [isNeighborhoodPriceLoading, setIsNeighborhoodPriceLoading] = useState(false);
   const [selectedBuildingListings, setSelectedBuildingListings] = useState([]);
   const [isDetailLoading, setIsDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState('');
@@ -48,6 +51,7 @@ export default function HousingPage({ isAuthenticated, userId, username, onRequi
   const [registryUploads, setRegistryUploads] = useState({});
   const [registryAnalysis, setRegistryAnalysis] = useState(null);
   const registryAnalysisTimerRef = useRef(null);
+  const detailRequestRef = useRef(0);
   const [onboardingMode, setOnboardingMode] = useState(null);
   const [riskGuideOpen, setRiskGuideOpen] = useState(false);
   const [filterOpen, setFilterOpen] = useState(false);
@@ -68,6 +72,30 @@ export default function HousingPage({ isAuthenticated, userId, username, onRequi
   const preferredSchoolBuilding = campusBuildings.find(
     (building) => String(building.id) === String(preferredSchoolBuildingId),
   ) || null;
+
+  useEffect(() => {
+    let active = true;
+    if (!isAuthenticated || !selectedListing?.id) {
+      setNeighborhoodPriceSummary(null);
+      setIsNeighborhoodPriceLoading(false);
+      return undefined;
+    }
+
+    setNeighborhoodPriceSummary(null);
+    setIsNeighborhoodPriceLoading(true);
+    getCachedNeighborhoodPriceStatistics(selectedListing.id)
+      .then((statistics) => {
+        if (active) setNeighborhoodPriceSummary(buildNeighborhoodPriceSummary(selectedListing, statistics));
+      })
+      .catch(() => {
+        if (active) setNeighborhoodPriceSummary(null);
+      })
+      .finally(() => {
+        if (active) setIsNeighborhoodPriceLoading(false);
+      });
+
+    return () => { active = false; };
+  }, [isAuthenticated, selectedListing]);
 
   const handleMapCenterChange = (nextCenter) => {
     setMapCenter((currentCenter) => {
@@ -228,10 +256,13 @@ export default function HousingPage({ isAuthenticated, userId, username, onRequi
     try {
       const detail = await getListingDetail(listingId);
       const analyzedDetail = applyRegistrySubmissionToListing(detail, submission);
+      writeListingDetailCache(analyzedDetail);
       setSelectedListing((current) => String(current?.id) === String(listingId) ? analyzedDetail : current);
       setSelectedBuildingListings((items) => items.map((item) => String(item.id) === String(listingId) ? analyzedDetail : item));
       return analyzedDetail;
     } catch {
+      const cachedDetail = readCachedListingDetail(listingId);
+      if (cachedDetail) writeListingDetailCache(applyRegistrySubmissionToListing(cachedDetail, submission));
       setSelectedListing((current) => String(current?.id) === String(listingId) ? applyRegistrySubmissionToListing(current, submission) : current);
       setSelectedBuildingListings((items) => items.map((item) => String(item.id) === String(listingId) ? applyRegistrySubmissionToListing(item, submission) : item));
       return null;
@@ -303,19 +334,31 @@ export default function HousingPage({ isAuthenticated, userId, username, onRequi
     }
   };
   const loadListingDetail = async (listing) => {
+    const requestId = detailRequestRef.current + 1;
+    detailRequestRef.current = requestId;
+    const cachedDetail = readCachedListingDetail(listing.id);
+    if (cachedDetail) {
+      setIsDetailLoading(false);
+      setDetailError('');
+      setSelectedListing(cachedDetail);
+      return cachedDetail;
+    }
+
     setIsDetailLoading(true);
     setDetailError('');
     try {
-      const detail = await getListingDetail(listing.id);
+      const detail = await getCachedListingDetail(listing.id);
+      if (detailRequestRef.current !== requestId) return null;
       setSelectedListing(detail);
       return detail;
     } catch {
+      if (detailRequestRef.current !== requestId) return null;
       // Keep the list response usable when the detail request is temporarily unavailable.
       setDetailError('매물 상세 정보를 불러오지 못해 목록 정보를 표시합니다.');
       setSelectedListing(listing);
       return listing;
     } finally {
-      setIsDetailLoading(false);
+      if (detailRequestRef.current === requestId) setIsDetailLoading(false);
     }
   };
   const openDetail = async (listing) => {
@@ -354,11 +397,11 @@ export default function HousingPage({ isAuthenticated, userId, username, onRequi
   const statusMessage = isDetailLoading
     ? '매물 상세 정보를 불러오는 중이에요.'
     : detailError || listingError;
-  const homeContent = <><Topbar mapOnly count={shownListings.length} onOpenFilter={() => setFilterOpen(true)} isAuthenticated={isAuthenticated} username={username} userId={userId} onLogin={onRequireLogin} onLogout={onLogout} />{!verificationDismissed && <ResidenceVerificationBanner verification={residenceVerification} onOpen={openResidenceVerification} onReview={openVerifiedResidenceReview} onDismiss={() => setVerificationDismissed(true)} />}<div className="housing-page__map"><MapExplorer listings={shownListings} isLoading={isListingLoading} onSelect={handleMapListingSelect} onSelectBuilding={handleBuildingSelect} onCenterChange={handleMapCenterChange} />{statusMessage && <p className="housing-page__loading">{statusMessage}</p>}{selectedBuildingListings.length > 0 && !selectedListing && <BuildingListingsPanel listings={selectedBuildingListings} onClose={() => setSelectedBuildingListings([])} onSelect={handleBuildingListingSelect} />}{selectedListing && <ListingPreview listing={selectedListing} reviews={listingReviews} averageRating={averageRating} isReviewLoading={isReviewsLoading} reviewsError={reviewsError} currentUserId={userId} registryUpload={registryUploads[selectedListing.id]} isFavorite={favorites.map(String).includes(String(selectedListing.id))} isLocked={!isAuthenticated} preferredSchoolBuilding={preferredSchoolBuilding} schoolDistance={selectedSchoolDistance} isSchoolDistanceLoading={isSchoolDistanceLoading} onClose={() => setSelectedListing(null)} onFavorite={handleFavorite} onInquiry={handleInquiry} onRequireLogin={onRequireLogin} onWriteReview={openReviewWriter} onEditReview={openReviewEditor} onDeleteReview={handleReviewDelete} onUploadRegistry={handleRegistryUpload} />}{!filterOpen && !selectedListing && selectedBuildingListings.length === 0 && <ChatAssistant onSelectListing={openDetail} />}</div></>;
-  const content = activePage === 'home' ? homeContent : activePage === 'favorites' ? <FavoritesSection listings={favoriteListings} favorites={favorites} isLoading={isFavoritesLoading} error={favoritesError} compareIds={compareIds} onSelect={openDetail} onFavorite={handleFavorite} onCompare={handleCompare} registryUploads={registryUploads} onUploadRegistry={handleRegistryUpload} /> : activePage === 'market' ? <MarketAnalysis listings={listings} /> : activePage === 'checklist' ? <ChecklistSection /> : <ProfileSection preferences={preferences} username={username} onOpenBuildingSettings={() => openOnboarding('building')} onOpenBudgetSettings={() => openOnboarding('budget')} onSavePreferences={savePreferences} />;
+  const homeContent = <><Topbar mapOnly count={shownListings.length} onOpenFilter={() => setFilterOpen(true)} isAuthenticated={isAuthenticated} username={username} userId={userId} onLogin={onRequireLogin} onLogout={onLogout} />{!verificationDismissed && <ResidenceVerificationBanner verification={residenceVerification} onOpen={openResidenceVerification} onReview={openVerifiedResidenceReview} onDismiss={() => setVerificationDismissed(true)} />}<div className="housing-page__map"><MapExplorer listings={shownListings} isLoading={isListingLoading} onSelect={handleMapListingSelect} onSelectBuilding={handleBuildingSelect} onCenterChange={handleMapCenterChange} />{statusMessage && <p className="housing-page__loading">{statusMessage}</p>}{selectedBuildingListings.length > 0 && !selectedListing && <BuildingListingsPanel listings={selectedBuildingListings} onClose={() => setSelectedBuildingListings([])} onSelect={handleBuildingListingSelect} />}{selectedListing && <ListingPreview listing={selectedListing} neighborhoodPriceSummary={neighborhoodPriceSummary} isNeighborhoodPriceLoading={isNeighborhoodPriceLoading} reviews={listingReviews} averageRating={averageRating} isReviewLoading={isReviewsLoading} reviewsError={reviewsError} currentUserId={userId} registryUpload={registryUploads[selectedListing.id]} isFavorite={favorites.map(String).includes(String(selectedListing.id))} isLocked={!isAuthenticated} preferredSchoolBuilding={preferredSchoolBuilding} schoolDistance={selectedSchoolDistance} isSchoolDistanceLoading={isSchoolDistanceLoading} onClose={() => setSelectedListing(null)} onFavorite={handleFavorite} onInquiry={handleInquiry} onRequireLogin={onRequireLogin} onWriteReview={openReviewWriter} onEditReview={openReviewEditor} onDeleteReview={handleReviewDelete} onUploadRegistry={handleRegistryUpload} />}{!filterOpen && !selectedListing && selectedBuildingListings.length === 0 && <ChatAssistant onSelectListing={openDetail} />}</div></>;
+  const secondaryContent = activePage === 'favorites' ? <FavoritesSection listings={favoriteListings} favorites={favorites} isLoading={isFavoritesLoading} error={favoritesError} compareIds={compareIds} onSelect={openDetail} onFavorite={handleFavorite} onCompare={handleCompare} registryUploads={registryUploads} onUploadRegistry={handleRegistryUpload} /> : activePage === 'market' ? <MarketAnalysis listings={listings} /> : activePage === 'checklist' ? <ChecklistSection /> : <ProfileSection preferences={preferences} username={username} onOpenBuildingSettings={() => openOnboarding('building')} onOpenBudgetSettings={() => openOnboarding('budget')} onSavePreferences={savePreferences} />;
 
   const isMapPanelOpen = Boolean(selectedListing || selectedBuildingListings.length);
-  return <main className="housing-page"><Sidebar activePage={activePage} hideRiskGuide={isMapPanelOpen} onNavigate={(page) => { if (!isAuthenticated && page !== 'home') return onRequireLogin(); setActivePage(page); setSelectedListing(null); setIsReviewFormOpen(false); }} onOpenRiskGuide={() => isAuthenticated ? setRiskGuideOpen(true) : onRequireLogin()} /><div className="housing-page__main">{content}</div>{filterOpen && <FilterPanel filters={filters} onChange={handleFilterChange} onClose={() => setFilterOpen(false)} onReset={resetFilters} count={shownListings.length} />}{onboardingMode && <OnboardingSection mode={onboardingMode} preferences={preferences} onClose={closeOnboarding} onDefer={deferOnboarding} onSave={savePreferences} />}{riskGuideOpen && <RiskDiagnosisGuide onClose={() => setRiskGuideOpen(false)} onGoToFavorites={openFavoritesFromRiskGuide} />}{isReviewFormOpen && selectedListing && <ReviewFormModal listing={selectedListing} verification={residenceVerification} initialReview={editingReview} isSubmitting={isReviewSubmitting} error={reviewSubmitError} onClose={() => { setIsReviewFormOpen(false); setEditingReview(null); }} onSubmit={handleReviewSubmit} />}{isResidenceVerificationOpen && <ResidenceVerificationModal verification={residenceVerification} onClose={() => setIsResidenceVerificationOpen(false)} onDefer={deferResidenceVerification} onComplete={completeResidenceVerification} onUpload={uploadResidenceVerificationDocument} />}{registryAnalysis && <RegistryAnalysisOverlay status={registryAnalysis.status} />}</main>;
+  return <main className="housing-page"><Sidebar activePage={activePage} hideRiskGuide={isMapPanelOpen} onNavigate={(page) => { if (!isAuthenticated && page !== 'home') return onRequireLogin(); setActivePage(page); setSelectedListing(null); setIsReviewFormOpen(false); }} onOpenRiskGuide={() => isAuthenticated ? setRiskGuideOpen(true) : onRequireLogin()} /><div className="housing-page__main"><div className={`housing-page__home${activePage === 'home' ? '' : ' is-hidden'}`} aria-hidden={activePage !== 'home'}>{homeContent}</div>{activePage !== 'home' && secondaryContent}</div>{filterOpen && <FilterPanel filters={filters} onChange={handleFilterChange} onClose={() => setFilterOpen(false)} onReset={resetFilters} count={shownListings.length} />}{onboardingMode && <OnboardingSection mode={onboardingMode} preferences={preferences} onClose={closeOnboarding} onDefer={deferOnboarding} onSave={savePreferences} />}{riskGuideOpen && <RiskDiagnosisGuide onClose={() => setRiskGuideOpen(false)} onGoToFavorites={openFavoritesFromRiskGuide} />}{isReviewFormOpen && selectedListing && <ReviewFormModal listing={selectedListing} verification={residenceVerification} initialReview={editingReview} isSubmitting={isReviewSubmitting} error={reviewSubmitError} onClose={() => { setIsReviewFormOpen(false); setEditingReview(null); }} onSubmit={handleReviewSubmit} />}{isResidenceVerificationOpen && <ResidenceVerificationModal verification={residenceVerification} onClose={() => setIsResidenceVerificationOpen(false)} onDefer={deferResidenceVerification} onComplete={completeResidenceVerification} onUpload={uploadResidenceVerificationDocument} />}{registryAnalysis && <RegistryAnalysisOverlay status={registryAnalysis.status} />}</main>;
 }
 
 function findListingById(listingId, listings) {

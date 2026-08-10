@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import {
   default as KakaoMap,
   getListingDisplayStage,
@@ -19,6 +19,7 @@ function installKakaoMapsHarness(initialLevel = 4) {
     maps: [],
     markers: [],
     overlays: [],
+    circles: [],
     polygons: [],
     geocodeRequests: [],
   };
@@ -92,9 +93,19 @@ function installKakaoMapsHarness(initialLevel = 4) {
     setMap(map) {
       this.map = map;
     }
+
+    setPosition(position) {
+      this.options.position = position;
+    }
   }
 
   class FakeCircle {
+    constructor(options) {
+      this.options = options;
+      this.map = null;
+      harness.circles.push(this);
+    }
+
     setMap(map) {
       this.map = map;
     }
@@ -157,6 +168,145 @@ test('주변 시설 유형을 지도 토글에서 사용하는 값으로 정규�
   expect(normalizeFacilityType('편의점')).toBe('CONVENIENCE_STORE');
   expect(normalizeFacilityType('subway')).toBe('SUBWAY');
   expect(normalizeFacilityType('streetlight')).toBe('STREETLIGHT');
+});
+
+test('CCTV 마커는 레벨 2에서도 필터를 눌러야 표시된다', async () => {
+  const harness = installKakaoMapsHarness(5);
+  render(
+    <KakaoMap
+      listings={[]}
+      facilities={[{
+        infrastructureId: 1366,
+        category: 'CCTV',
+        name: '서울 동대문구 천호대로13길 43',
+        latitude: 37.5759,
+        longitude: 127.029,
+      }]}
+    />,
+  );
+
+  await waitFor(() => expect(harness.overlays.some((overlay) => (
+    overlay.content?.className === 'kakao-map__facility-marker'
+  ))).toBe(true));
+  const cctvOverlay = harness.overlays.find((overlay) => (
+    overlay.content?.className === 'kakao-map__facility-marker'
+  ));
+  const focusDimOverlay = harness.overlays.find((overlay) => (
+    overlay.content?.className === 'kakao-map__focus-dim-overlay'
+  ));
+
+  expect(cctvOverlay.map).toBeNull();
+  expect(focusDimOverlay).toBeDefined();
+  expect(focusDimOverlay.options.zIndex).toBe(2);
+  expect(cctvOverlay.options.zIndex).toBe(3);
+
+  act(() => {
+    harness.map.setLevel(2);
+    harness.map.listeners.zoom_changed[0]();
+  });
+
+  expect(cctvOverlay.map).toBeNull();
+  expect(screen.getByRole('button', { name: /CCTV/ })).toHaveAttribute('aria-pressed', 'false');
+  const safetyZone = harness.circles.find((circle) => circle.options.radius === 60);
+  expect(safetyZone).toBeUndefined();
+
+  const cctvButton = screen.getByRole('button', { name: /CCTV/ });
+  fireEvent.click(cctvButton);
+
+  expect(cctvOverlay.map).toBe(harness.map);
+  expect(screen.getByRole('button', { name: /CCTV/ })).toHaveAttribute('aria-pressed', 'true');
+  expect(cctvButton.closest('.kakao-map')).toHaveClass('is-facility-focus', 'is-focus-cctv');
+  expect(screen.getByText('CCTV 위치 강조')).toBeInTheDocument();
+  expect(cctvOverlay.content).toHaveAttribute('title', '서울 동대문구 천호대로13길 43');
+
+  fireEvent.click(cctvButton);
+  expect(cctvOverlay.map).toBeNull();
+  expect(cctvButton.closest('.kakao-map')).not.toHaveClass('is-facility-focus');
+  expect(screen.queryByText('CCTV 위치 강조')).not.toBeInTheDocument();
+});
+
+test('경찰서는 레벨 3에서 300m 접근권을 표시하고 축소하면 숨긴다', async () => {
+  const harness = installKakaoMapsHarness(3);
+  const onFacilityTypeChange = jest.fn();
+  render(
+    <KakaoMap
+      listings={[]}
+      facilities={[{
+        infrastructureId: 2001,
+        category: 'POLICE',
+        name: '휘경파출소',
+        latitude: 37.583,
+        longitude: 127.06,
+      }]}
+      onFacilityTypeChange={onFacilityTypeChange}
+    />,
+  );
+
+  await waitFor(() => expect(harness.overlays.some((overlay) => (
+    overlay.content?.title === '휘경파출소'
+  ))).toBe(true));
+  const policeOverlay = harness.overlays.find((overlay) => overlay.content?.title === '휘경파출소');
+  const policeZone = harness.circles.find((circle) => circle.options.radius === 300);
+  const policeWalkLabel = harness.overlays.find((overlay) => (
+    overlay.content?.className === 'kakao-map__police-walk-label'
+  ));
+
+  expect(policeOverlay.map).toBeNull();
+  expect(policeZone).toBeDefined();
+  expect(policeZone.map).toBeNull();
+  expect(policeWalkLabel).toBeDefined();
+  expect(policeWalkLabel.map).toBeNull();
+  expect(policeWalkLabel.content).toHaveTextContent('경찰서 도보 약 4분');
+
+  fireEvent.click(screen.getByRole('button', { name: /경찰서/ }));
+
+  expect(onFacilityTypeChange).toHaveBeenCalledWith('POLICE');
+  expect(policeOverlay.map).toBe(harness.map);
+  expect(policeZone.map).toBe(harness.map);
+  expect(policeWalkLabel.map).toBe(harness.map);
+  expect(policeZone.options).toMatchObject({ fillColor: '#60a5fa', radius: 300 });
+  expect(screen.getByText('경찰서 접근권 · 약 4분')).toBeInTheDocument();
+  const mapRoot = screen.getByRole('button', { name: /경찰서/ }).closest('.kakao-map');
+  expect(mapRoot).toHaveClass('is-facility-focus', 'is-focus-police');
+
+  act(() => {
+    harness.map.listeners.zoom_start[0]();
+    harness.map.setLevel(2);
+    harness.map.listeners.zoom_changed[0]();
+  });
+
+  expect(mapRoot).toHaveClass('is-facility-focus', 'is-map-zooming');
+  expect(mapRoot.querySelector('.kakao-map__zoom-dim')).toBeInTheDocument();
+
+  act(() => {
+    harness.map.listeners.idle[0]();
+  });
+
+  expect(mapRoot).toHaveClass('is-facility-focus');
+  expect(mapRoot).not.toHaveClass('is-map-zooming');
+
+  act(() => {
+    harness.map.setLevel(4);
+    harness.map.listeners.zoom_changed[0]();
+  });
+
+  expect(policeOverlay.map).toBeNull();
+  expect(policeZone.map).toBeNull();
+  expect(policeWalkLabel.map).toBeNull();
+  expect(screen.getByRole('button', { name: /경찰서/ }).closest('.kakao-map')).not.toHaveClass('is-facility-focus');
+  expect(screen.queryByText('경찰서 접근권 · 약 4분')).not.toBeInTheDocument();
+});
+
+test('구현된 시설 필터만 활성화한다', async () => {
+  const harness = installKakaoMapsHarness(5);
+  render(<KakaoMap listings={[]} facilities={[]} />);
+
+  await waitFor(() => expect(harness.maps).toHaveLength(1));
+  expect(screen.getByRole('button', { name: /CCTV/ })).toBeEnabled();
+  expect(screen.getByRole('button', { name: /경찰서/ })).toBeEnabled();
+  expect(screen.getByRole('button', { name: /지하철/ })).toBeEnabled();
+  expect(screen.getByRole('button', { name: /편의점/ })).toBeDisabled();
+  expect(screen.getByRole('button', { name: /가로등/ })).toBeDisabled();
 });
 
 test('세밀한 포인터 환경을 웹 입력으로 판별한다', () => {
@@ -354,7 +504,7 @@ test('초기 축소 화면은 같은 동 매물을 동 이름과 전체 개수�
   ));
   expect(clusterOverlay.content).toHaveTextContent('회기동 · 2개');
   expect(clusterOverlay.content.children).toHaveLength(1);
-  expect(clusterOverlay.content).not.toHaveTextContent('최저');
+  expect(clusterOverlay.content).not.toHaveTextContent('최저 월세');
 
   clusterOverlay.content.click();
 
@@ -493,7 +643,7 @@ test('한 단계 확대하면 동 이름과 개수 및 가장 가까운 출입�
 
   const clusterOverlay = harness.overlays.find((overlay) => overlay.content?.className?.includes('kakao-map__listing-cluster'));
   expect(clusterOverlay.content).toHaveTextContent('회기동 · 1개');
-  expect(clusterOverlay.content).toHaveTextContent('후문 4분');
+  expect(clusterOverlay.content).toHaveTextContent('최소 후문 4분');
   clusterOverlay.content.click();
 
   expect(harness.markers).toHaveLength(0);
@@ -524,9 +674,9 @@ test('두 단계 확대하면 블록 요약을 표시하고 클릭 시 왼쪽 �
 
   await waitFor(() => expect(harness.overlays.some((overlay) => overlay.content?.className?.includes('kakao-map__listing-cluster'))).toBe(true));
   const clusterOverlay = harness.overlays.find((overlay) => overlay.content?.className?.includes('kakao-map__listing-cluster'));
-  expect(clusterOverlay.content).toHaveTextContent('후문 4분');
+  expect(clusterOverlay.content).toHaveTextContent('최소 후문 4분');
   expect(clusterOverlay.content).toHaveTextContent('2개');
-  expect(clusterOverlay.content).toHaveTextContent('최저 42');
+  expect(clusterOverlay.content).toHaveTextContent('최저 월세 42');
 
   clusterOverlay.content.click();
   expect(onSelectBuilding).toHaveBeenCalledWith(listings);
@@ -549,7 +699,7 @@ test('가까이 확대하면 건물별 가격표를 보여주고 클릭 시 왼�
 
   await waitFor(() => expect(harness.overlays.some((overlay) => overlay.content?.className?.includes('kakao-map__listing-cluster'))).toBe(true));
   const clusterOverlay = harness.overlays.find((overlay) => overlay.content?.className?.includes('kakao-map__listing-cluster'));
-  expect(clusterOverlay.content).toHaveTextContent('500/45');
+  expect(clusterOverlay.content).toHaveTextContent('월세 500/45');
 
   clusterOverlay.content.click();
   expect(onSelectBuilding).toHaveBeenCalledWith([listing]);

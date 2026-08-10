@@ -84,6 +84,120 @@ test('설정한 학교 건물과 해당 건물까지의 거리를 보여준다',
   expect(screen.queryByText(/정보대 도보/)).not.toBeInTheDocument();
 });
 
+test('주변 시세 응답과 실제 매물 사진을 상세 상단에 보여준다', () => {
+  render(
+    <ListingPreview
+      listing={{ ...listing, imageUrls: ['https://example.com/room.jpg'] }}
+      neighborhoodPriceSummary={{ differenceLabel: '-6%', marketPriceLabel: '월 48만원', neighborhoodName: '전농동', listingCount: 12 }}
+      isNeighborhoodPriceLoading={false}
+      reviews={[]}
+      averageRating={0}
+      isReviewLoading={false}
+      reviewsError=""
+      isFavorite={false}
+      isLocked={false}
+      onClose={jest.fn()}
+      onFavorite={jest.fn()}
+      onInquiry={jest.fn()}
+      onRequireLogin={jest.fn()}
+      onWriteReview={jest.fn()}
+    />,
+  );
+
+  expect(screen.getByRole('img', { name: listing.title })).toHaveAttribute('src', 'https://example.com/room.jpg');
+  expect(screen.getByText('시세 대비 -6%')).toBeInTheDocument();
+  expect(screen.getByText('인근 시세 월 48만원')).toBeInTheDocument();
+});
+
+test('주변 시세를 조회하는 동안 상태를 안내한다', () => {
+  render(
+    <ListingPreview
+      listing={listing}
+      neighborhoodPriceSummary={null}
+      isNeighborhoodPriceLoading
+      reviews={[]}
+      averageRating={0}
+      isReviewLoading={false}
+      reviewsError=""
+      isFavorite={false}
+      isLocked={false}
+      onClose={jest.fn()}
+      onFavorite={jest.fn()}
+      onInquiry={jest.fn()}
+      onRequireLogin={jest.fn()}
+      onWriteReview={jest.fn()}
+    />,
+  );
+
+  expect(screen.getByText('인근 시세 확인 중')).toBeInTheDocument();
+});
+
+test('집주인 인증 정보가 없으면 비활성화하고 인증 완료 응답이 있을 때만 활성화한다', () => {
+  const { rerender } = render(
+    <ListingPreview
+      listing={listing}
+      reviews={[]}
+      averageRating={0}
+      isReviewLoading={false}
+      reviewsError=""
+      isFavorite={false}
+      isLocked={false}
+      onClose={jest.fn()}
+      onFavorite={jest.fn()}
+      onInquiry={jest.fn()}
+      onRequireLogin={jest.fn()}
+      onWriteReview={jest.fn()}
+    />,
+  );
+
+  expect(screen.getByText('집주인 미인증')).toHaveClass('status-badge--gray');
+  expect(screen.queryByText('집주인 인증')).not.toBeInTheDocument();
+
+  rerender(
+    <ListingPreview
+      listing={{ ...listing, ownerVerificationStatus: 'VERIFIED' }}
+      reviews={[]}
+      averageRating={0}
+      isReviewLoading={false}
+      reviewsError=""
+      isFavorite={false}
+      isLocked={false}
+      onClose={jest.fn()}
+      onFavorite={jest.fn()}
+      onInquiry={jest.fn()}
+      onRequireLogin={jest.fn()}
+      onWriteReview={jest.fn()}
+    />,
+  );
+
+  expect(screen.getByText('집주인 인증')).toHaveClass('status-badge--green');
+});
+
+test('찜 버튼은 선택된 경우에만 활성 색상을 사용한다', () => {
+  const props = {
+    listing,
+    reviews: [],
+    averageRating: 0,
+    isReviewLoading: false,
+    reviewsError: '',
+    isLocked: false,
+    onClose: jest.fn(),
+    onFavorite: jest.fn(),
+    onInquiry: jest.fn(),
+    onRequireLogin: jest.fn(),
+    onWriteReview: jest.fn(),
+  };
+  const { rerender } = render(<ListingPreview {...props} isFavorite={false} />);
+
+  const favoriteButton = screen.getByRole('button', { name: '찜' });
+  expect(favoriteButton).toHaveAttribute('aria-pressed', 'false');
+  expect(favoriteButton).not.toHaveClass('is-favorite');
+
+  rerender(<ListingPreview {...props} isFavorite />);
+  expect(screen.getByRole('button', { name: '찜' })).toHaveAttribute('aria-pressed', 'true');
+  expect(screen.getByRole('button', { name: '찜' })).toHaveClass('is-favorite');
+});
+
 test('미리보기에서 처음 두 리뷰만 보이고 남은 리뷰를 더보기로 펼친다', () => {
   render(
     <ListingPreview
