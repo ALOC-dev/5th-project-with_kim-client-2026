@@ -1,9 +1,21 @@
-import { getAuthorizationHeader } from './authService';
+import { ensureValidAccessToken, getAuthorizationHeader, hasRefreshToken, reissueAccessToken } from './authService';
 import { API_BASE_URL } from './apiConfig';
 
 export async function apiRequest(path, { method = 'GET', body, headers = {} } = {}) {
+  await ensureValidAccessToken();
+  let response = await sendRequest(path, { method, body, headers });
+
+  if (response.status === 401 && hasRefreshToken()) {
+    await reissueAccessToken();
+    response = await sendRequest(path, { method, body, headers });
+  }
+
+  return parseResponse(response);
+}
+
+function sendRequest(path, { method, body, headers }) {
   const isFormData = typeof FormData !== 'undefined' && body instanceof FormData;
-  const response = await fetch(`${API_BASE_URL}${path}`, {
+  return fetch(`${API_BASE_URL}${path}`, {
     method,
     headers: {
       Accept: 'application/json',
@@ -13,7 +25,9 @@ export async function apiRequest(path, { method = 'GET', body, headers = {} } = 
     },
     body: body ? isFormData ? body : JSON.stringify(body) : undefined,
   });
+}
 
+async function parseResponse(response) {
   if (!response.ok) {
     const message = await response.text();
     throw new Error(message || `API 요청에 실패했습니다. (${response.status})`);

@@ -3,9 +3,14 @@ const KAKAO_LOGIN_START_PATH = '/api/auth/kakao';
 const ACCESS_TOKEN_KEY = 'sibang.accessToken';
 const REFRESH_TOKEN_KEY = 'sibang.refreshToken';
 const TOKEN_TYPE_KEY = 'sibang.tokenType';
+const ACCESS_TOKEN_ISSUED_AT_KEY = 'sibang.accessTokenIssuedAt';
 const USER_ID_KEY = 'sibang.userId';
 const USERNAME_KEY = 'sibang.username';
 const ROLE_KEY = 'sibang.role';
+const ACCESS_TOKEN_LIFETIME_MS = 24 * 60 * 60 * 1000;
+const TOKEN_EXPIRY_MARGIN_MS = 30 * 1000;
+export const AUTH_SESSION_EXPIRED_EVENT = 'sibang:auth-session-expired';
+let reissueRequest = null;
 
 export function getKakaoLoginStartUrl() {
   return `${API_BASE_URL}${KAKAO_LOGIN_START_PATH}`;
@@ -56,6 +61,7 @@ function storeLoginResponse(loginResponse, fallbackUsername = '', fallbackRole =
   if (!accessToken) throw new Error('Access token is missing');
 
   localStorage.setItem(ACCESS_TOKEN_KEY, accessToken);
+  localStorage.setItem(ACCESS_TOKEN_ISSUED_AT_KEY, String(Date.now()));
   if (id !== undefined && id !== null) localStorage.setItem(USER_ID_KEY, String(id));
   if (username || fallbackUsername) localStorage.setItem(USERNAME_KEY, username || fallbackUsername);
   if (refreshToken) localStorage.setItem(REFRESH_TOKEN_KEY, refreshToken);
@@ -101,6 +107,66 @@ export function getAuthorizationHeader() {
   return accessToken ? { Authorization: `${tokenType} ${accessToken}` } : {};
 }
 
+export function hasRefreshToken() {
+  return Boolean(localStorage.getItem(REFRESH_TOKEN_KEY));
+}
+
+export function shouldReissueAccessToken(now = Date.now()) {
+  const accessToken = localStorage.getItem(ACCESS_TOKEN_KEY);
+  if (!accessToken) return false;
+
+  const payload = decodeAccessToken(accessToken);
+  const expiresAt = Number(payload?.exp) * 1000;
+  const issuedAt = Number(localStorage.getItem(ACCESS_TOKEN_ISSUED_AT_KEY));
+  const expiryCandidates = [
+    Number.isFinite(expiresAt) && expiresAt > 0 ? expiresAt : null,
+    Number.isFinite(issuedAt) && issuedAt > 0 ? issuedAt + ACCESS_TOKEN_LIFETIME_MS : null,
+  ].filter(Boolean);
+
+  return expiryCandidates.some((expiry) => now >= expiry - TOKEN_EXPIRY_MARGIN_MS);
+}
+
+export async function ensureValidAccessToken() {
+  if (!shouldReissueAccessToken()) return localStorage.getItem(ACCESS_TOKEN_KEY);
+  return reissueAccessToken();
+}
+
+export function reissueAccessToken() {
+  if (reissueRequest) return reissueRequest;
+
+  const refreshToken = localStorage.getItem(REFRESH_TOKEN_KEY);
+  if (!refreshToken) return Promise.reject(expireStoredSession());
+
+  reissueRequest = fetch(`${API_BASE_URL}/api/auth/reissue`, {
+    method: 'POST',
+    headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+    body: JSON.stringify({ refreshToken }),
+  })
+    .then(async (response) => {
+      if (!response.ok) throw new Error('Access token reissue failed');
+      const responseBody = await response.json();
+      const tokens = responseBody?.data || responseBody;
+      if (!tokens?.accessToken) throw new Error('Access token is missing');
+
+      localStorage.setItem(ACCESS_TOKEN_KEY, tokens.accessToken);
+      localStorage.setItem(ACCESS_TOKEN_ISSUED_AT_KEY, String(Date.now()));
+      if (tokens.refreshToken) localStorage.setItem(REFRESH_TOKEN_KEY, tokens.refreshToken);
+      if (tokens.tokenType || tokens.TokenType) localStorage.setItem(TOKEN_TYPE_KEY, tokens.tokenType || tokens.TokenType);
+      const role = getRoleFromAccessToken(tokens.accessToken);
+      if (role) localStorage.setItem(ROLE_KEY, role);
+      return tokens.accessToken;
+    })
+    .catch((error) => {
+      expireStoredSession();
+      throw error;
+    })
+    .finally(() => {
+      reissueRequest = null;
+    });
+
+  return reissueRequest;
+}
+
 export function getCurrentUserId() {
   return localStorage.getItem(USER_ID_KEY);
 }
@@ -118,7 +184,30 @@ export function isBusinessUser(role = getCurrentRole()) {
 }
 
 export async function logout() {
+  clearStoredSession();
+}
+
+function decodeAccessToken(accessToken) {
+  try {
+    const payload = accessToken.split('.')[1];
+    if (!payload) return null;
+    const normalizedPayload = payload.replace(/-/g, '+').replace(/_/g, '/');
+    const paddedPayload = normalizedPayload.padEnd(Math.ceil(normalizedPayload.length / 4) * 4, '=');
+    return JSON.parse(window.atob(paddedPayload));
+  } catch {
+    return null;
+  }
+}
+
+function expireStoredSession() {
+  clearStoredSession();
+  window.dispatchEvent(new Event(AUTH_SESSION_EXPIRED_EVENT));
+  return new Error('로그인 세션이 만료되었습니다. 다시 로그인해 주세요.');
+}
+
+function clearStoredSession() {
   localStorage.removeItem(ACCESS_TOKEN_KEY);
+  localStorage.removeItem(ACCESS_TOKEN_ISSUED_AT_KEY);
   localStorage.removeItem(USER_ID_KEY);
   localStorage.removeItem(USERNAME_KEY);
   localStorage.removeItem(REFRESH_TOKEN_KEY);
