@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import HousingPage from './pages/HousingPage';
 import LoginPage from './pages/LoginPage';
 import BusinessPage from './pages/BusinessPage';
-import { exchangeKakaoCode, getCurrentRole, getCurrentUserId, getCurrentUsername, getUserProfile, hasAccessToken, isBusinessUser, logout, storeCurrentUserProfile } from './services';
+import { AUTH_SESSION_EXPIRED_EVENT, exchangeKakaoCode, getCurrentRole, getCurrentUserId, getCurrentUsername, getUserProfile, hasAccessToken, isBusinessUser, logout, storeCurrentUserProfile } from './services';
 
 export default function App() {
   const [isCheckingSession, setIsCheckingSession] = useState(true);
@@ -61,6 +61,20 @@ export default function App() {
     const handlePopState = () => setPathname(window.location.pathname);
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
+  useEffect(() => {
+    const handleSessionExpired = () => {
+      setIsAuthenticated(false);
+      setUserId(null);
+      setUsername(null);
+      setRole(null);
+      setAuthError('로그인 세션이 만료되었어요. 다시 로그인해 주세요.');
+      window.history.replaceState({}, document.title, '/login');
+      setPathname('/login');
+    };
+    window.addEventListener(AUTH_SESSION_EXPIRED_EVENT, handleSessionExpired);
+    return () => window.removeEventListener(AUTH_SESSION_EXPIRED_EVENT, handleSessionExpired);
   }, []);
 
   const handleLogout = async () => {

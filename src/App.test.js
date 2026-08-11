@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import App from './App.jsx';
-import { exchangeKakaoCode, getAuthorizationHeader, getCurrentUsername, getKakaoLoginStartUrl, loginBusinessUser } from './services';
+import { AUTH_SESSION_EXPIRED_EVENT, exchangeKakaoCode, getAuthorizationHeader, getCurrentUsername, getKakaoLoginStartUrl, loginBusinessUser } from './services';
 
 jest.mock('./pages/HousingPage', () => function MockHousingPage({ username, userId }) {
   return <div>{username || `회원 #${userId}`}</div>;
@@ -130,4 +130,24 @@ test('restores the signed-in user name from the current user API', async () => {
     'https://www.sibang.site/api/users/me',
     expect.objectContaining({ method: 'GET' }),
   );
+});
+
+test('refresh token 재발급이 실패하면 로그인 화면으로 전환한다', async () => {
+  localStorage.clear();
+  localStorage.setItem('sibang.accessToken', 'access-token');
+  localStorage.setItem('sibang.userId', '4');
+  window.history.replaceState({}, '', '/');
+  global.fetch = jest.fn().mockResolvedValue({
+    ok: true,
+    status: 200,
+    text: async () => JSON.stringify({ userId: 4, username: '김정묵', role: 'USER' }),
+  });
+
+  render(<App />);
+  expect(await screen.findByText('김정묵')).toBeInTheDocument();
+
+  fireEvent(window, new Event(AUTH_SESSION_EXPIRED_EVENT));
+
+  expect(await screen.findByRole('button', { name: '카카오로 시작하기' })).toBeInTheDocument();
+  expect(screen.getByRole('alert')).toHaveTextContent('로그인 세션이 만료되었어요. 다시 로그인해 주세요.');
 });
