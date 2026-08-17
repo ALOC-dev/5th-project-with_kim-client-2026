@@ -62,3 +62,12 @@ test('전세 매물은 평균 전세 보증금과 비교한 요약을 만든다'
     listingCount: 7,
   });
 });
+
+test('houseId로 조회한 인근 전세 시세는 만원 미만 소수점을 버린다', () => {
+  const summary = buildNeighborhoodPriceSummary(
+    { dealType: '전세', depositAmount: 400000000 },
+    { neighborhoodName: '휘경동', averageJeonseDeposit: 371217000, jeonseListingCount: 9 },
+  );
+
+  expect(summary.marketPriceLabel).toBe('전세 37,121만원');
+});

@@ -30,6 +30,7 @@ export default function ListingPreview({ listing, neighborhoodPriceSummary, isNe
   const [showAllReviews, setShowAllReviews] = useState(false);
   const [isRegistryGuideOpen, setIsRegistryGuideOpen] = useState(false);
   const photoUrl = listing.imageUrls?.[0];
+  const viewCount = Math.max(0, Math.trunc(Number(listing.viewCount) || 0));
   const schoolBuildingName = schoolDistance?.schoolBuildingName || preferredSchoolBuilding?.name;
   const distanceMeters = Number(schoolDistance?.distanceMeters);
   const schoolDistanceLabel = !schoolBuildingName
@@ -92,7 +93,7 @@ export default function ListingPreview({ listing, neighborhoodPriceSummary, isNe
       <NearbyFacilities metadata={listing.metadata} />
       <ReviewSummary reviews={reviews} averageRating={averageRating} isLoading={isReviewLoading} error={reviewsError} currentUserId={currentUserId} showAll={showAllReviews} onToggleReviews={() => setShowAllReviews((isOpen) => !isOpen)} onWriteReview={onWriteReview} onEditReview={onEditReview} onDeleteReview={onDeleteReview} />
       <section className="listing-preview__agent"><b>담당 공인중개사</b><div><span>{listing.agent.name.slice(0, 1)}</span><p><strong>{listing.agent.name} <StatusBadge tone="green">인증</StatusBadge></strong><small>{listing.agent.office}</small><small>{listing.agent.license}</small></p></div></section>
-      <p className="listing-preview__stats">조회 정보 없음 · 리뷰 {reviews.length}개 · 문의 정보 없음</p>
+      <p className="listing-preview__stats">조회 {viewCount.toLocaleString('ko-KR')}회 · 리뷰 {reviews.length}개 · 문의 정보 없음</p>
     </div>
 
     <footer>

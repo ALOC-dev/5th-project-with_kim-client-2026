@@ -89,6 +89,7 @@ export function mapHouseToListing(house, index = 0) {
     roomNumber: house.roomNumber ?? null,
     roomType,
     direction,
+    viewCount: firstFiniteNumber(house.viewcount, house.viewCount) ?? 0,
     metadata: house.metadata ?? null,
     facilities: house.facilities ?? house.nearbyFacilities ?? house.metadata?.facilities ?? [],
     features: [direction, house.toilet ? `화장실 ${house.toilet}개` : null].filter(Boolean),

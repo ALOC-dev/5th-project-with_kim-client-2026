@@ -156,6 +156,7 @@ test('loads a selected listing through its house detail endpoint', async () => {
       jeonseRate: 58.31,
       lhEligible: true,
       hugEligible: false,
+      viewcount: 1234,
       metadata: { restaurantCount: 12 },
       imageUrls: [],
     }),
@@ -168,6 +169,7 @@ test('loads a selected listing through its house detail endpoint', async () => {
     id: '7',
     deposit: '1,000',
     rent: '70',
+    viewCount: 1234,
     safetyScore: 47,
     registryUpload: { status: 'ANALYZED' },
     risk: {
