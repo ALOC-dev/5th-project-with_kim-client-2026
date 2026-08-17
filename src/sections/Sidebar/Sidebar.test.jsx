@@ -1,6 +1,20 @@
 import { render, screen } from '@testing-library/react';
 import Sidebar from './Sidebar';
 
+test('계약 체크리스트 메뉴를 비활성화한다', () => {
+  const onNavigate = jest.fn();
+
+  render(
+    <Sidebar
+      activePage="home"
+      onNavigate={onNavigate}
+      onOpenRiskGuide={jest.fn()}
+    />,
+  );
+
+  expect(screen.getByRole('button', { name: '계약 체크리스트' })).toBeDisabled();
+});
+
 test('매물 미리보기가 열려 있으면 전세사기 위험도 진단 버튼을 표시하지 않는다', () => {
   render(
     <Sidebar

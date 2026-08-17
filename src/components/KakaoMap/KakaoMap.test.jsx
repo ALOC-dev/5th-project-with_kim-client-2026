@@ -50,6 +50,7 @@ function installKakaoMapsHarness(initialLevel = 4) {
       this.setLevel = jest.fn((level) => {
         this.level = level;
       });
+      this.setMaxLevel = jest.fn();
       harness.map = this;
       harness.maps.push(this);
     }
@@ -168,6 +169,15 @@ test('주변 시설 유형을 지도 토글에서 사용하는 값으로 정규�
   expect(normalizeFacilityType('편의점')).toBe('CONVENIENCE_STORE');
   expect(normalizeFacilityType('subway')).toBe('SUBWAY');
   expect(normalizeFacilityType('streetlight')).toBe('STREETLIGHT');
+});
+
+test('학교 주변보다 멀리 축소할 수 없도록 최대 지도 레벨을 제한한다', async () => {
+  const harness = installKakaoMapsHarness(5);
+
+  render(<KakaoMap listings={[]} facilities={[]} />);
+
+  await waitFor(() => expect(harness.map).not.toBeNull());
+  expect(harness.map.setMaxLevel).toHaveBeenCalledWith(5);
 });
 
 test('CCTV 마커는 레벨 2에서도 필터를 눌러야 표시된다', async () => {
