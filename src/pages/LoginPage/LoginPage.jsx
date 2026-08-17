@@ -10,6 +10,7 @@ export default function LoginPage({ authError, onBusinessLogin }) {
   const [loginMode, setLoginMode] = useState('student');
   const [isLoading, setIsLoading] = useState(false);
   const [loginError, setLoginError] = useState('');
+  const [signupSuccess, setSignupSuccess] = useState('');
   const [selectedGu, setSelectedGu] = useState(DEFAULT_SIGNUP_GU);
   const [selectedDong, setSelectedDong] = useState(SEOUL_DISTRICTS[DEFAULT_SIGNUP_GU][0]);
   const [licenseFileName, setLicenseFileName] = useState('');
@@ -46,15 +47,29 @@ export default function LoginPage({ authError, onBusinessLogin }) {
 
   async function handleBrokerSignup(event) {
     event.preventDefault();
-    setIsLoading(true);
     setLoginError('');
+    setSignupSuccess('');
+    const formData = new FormData(event.currentTarget);
+    const password = formData.get('password');
+    const confirmPassword = formData.get('confirmPassword');
+    if (password !== confirmPassword) {
+      setLoginError('비밀번호가 일치하지 않아요.');
+      return;
+    }
+
+    setIsLoading(true);
     try {
-      const formData = new FormData(event.currentTarget);
-      formData.set('gu', selectedGu);
-      formData.set('dong', selectedDong);
-      await requestBrokerSignup(formData);
+      await requestBrokerSignup({
+        loginId: formData.get('loginId'),
+        username: formData.get('username'),
+        password,
+        confirmPassword,
+      });
+      setLoginMode('business');
+      setSignupSuccess('가입이 완료됐어요. 사업자 로그인을 진행해 주세요.');
     } catch (error) {
-      setLoginError('중개사 가입 신청 API 연결 후 이용할 수 있어요.');
+      setLoginError(error.message || '회원가입에 실패했어요. 잠시 후 다시 시도해 주세요.');
+    } finally {
       setIsLoading(false);
     }
   }
@@ -62,6 +77,7 @@ export default function LoginPage({ authError, onBusinessLogin }) {
   function switchMode(nextMode) {
     setLoginMode(nextMode);
     setLoginError('');
+    setSignupSuccess('');
     setIsLoading(false);
   }
 
@@ -115,17 +131,21 @@ export default function LoginPage({ authError, onBusinessLogin }) {
         <p>활동 지역과 자격증 정보를 입력해주세요</p>
         <label>활동 지역 (중개사무소 소재지)</label>
         <div className="login-page__area-selects">
-          <select aria-label="구 선택" name="gu" value={selectedGu} onChange={handleGuChange}>{SEOUL_GU_OPTIONS.map((gu) => <option key={gu} value={gu}>{gu}</option>)}</select>
-          <select aria-label="동 선택" name="dong" value={selectedDong} onChange={(event) => setSelectedDong(event.target.value)}>{SEOUL_DISTRICTS[selectedGu].map((dong) => <option key={dong} value={dong}>{dong}</option>)}</select>
+          <select aria-label="구 선택" value={selectedGu} onChange={handleGuChange}>{SEOUL_GU_OPTIONS.map((gu) => <option key={gu} value={gu}>{gu}</option>)}</select>
+          <select aria-label="동 선택" value={selectedDong} onChange={(event) => setSelectedDong(event.target.value)}>{SEOUL_DISTRICTS[selectedGu].map((dong) => <option key={dong} value={dong}>{dong}</option>)}</select>
         </div>
         <input className="login-page__area-summary" value={`${selectedGu} · ${selectedDong}`} readOnly aria-label="선택한 활동 지역" />
         <label htmlFor="broker-signup-id">아이디</label>
-        <input id="broker-signup-id" name="loginId" type="text" placeholder="사용할 아이디를 입력하세요" autoComplete="username" />
+        <input id="broker-signup-id" name="loginId" type="text" placeholder="사용할 아이디를 입력하세요" autoComplete="username" required />
+        <label htmlFor="broker-signup-username">사용자 이름</label>
+        <input id="broker-signup-username" name="username" type="text" placeholder="이름을 입력하세요" autoComplete="name" required />
         <label htmlFor="broker-signup-password">비밀번호</label>
-        <input id="broker-signup-password" name="password" type="password" placeholder="••••••••" autoComplete="new-password" />
+        <input id="broker-signup-password" name="password" type="password" placeholder="••••••••" autoComplete="new-password" required />
+        <label htmlFor="broker-signup-confirm-password">비밀번호 확인</label>
+        <input id="broker-signup-confirm-password" name="confirmPassword" type="password" placeholder="비밀번호를 다시 입력하세요" autoComplete="new-password" required />
         <label htmlFor="broker-license-file">공인중개사 자격증</label>
         <label className="login-page__license-upload" htmlFor="broker-license-file"><Icon name="upload" size={16} /><span>{licenseFileName || '자격증 사진 업로드'}</span></label>
-        <input id="broker-license-file" className="login-page__license-input" name="licenseFile" type="file" accept="image/*,application/pdf" onChange={handleLicenseFileChange} />
+        <input id="broker-license-file" className="login-page__license-input" type="file" accept="image/*,application/pdf" onChange={handleLicenseFileChange} />
         <button className="login-page__business-submit" type="submit" disabled={isLoading}>{isLoading ? '신청 중...' : '가입 신청하기'}</button>
         <p className="login-page__switch login-page__switch--after-submit">이미 계정이 있으신가요? <button type="button" onClick={() => switchMode('business')}>사업자 로그인으로 돌아가기</button></p>
         {loginError && <p className="login-page__error" role="alert">{loginError}</p>}
@@ -140,6 +160,7 @@ export default function LoginPage({ authError, onBusinessLogin }) {
         <p className="login-page__switch login-page__switch--after-submit">아직 등록된 계정이 없으신가요? <button type="button" onClick={() => switchMode('brokerSignup')}>중개사 가입 신청</button></p>
         <div className="login-page__divider" />
         <p className="login-page__switch">학생이신가요? <button className="login-page__back-to-student" type="button" onClick={() => switchMode('student')}>학생 로그인으로 돌아가기</button></p>
+        {signupSuccess && <p className="login-page__success" role="status">{signupSuccess}</p>}
         {loginError && <p className="login-page__error" role="alert">{loginError}</p>}
       </form>}
     </section>

@@ -333,6 +333,14 @@
   margin-top: 0;
 }
 
+.login-page__signup-form {
+  max-height: calc(100dvh - 60px);
+  overflow-y: auto;
+  padding-right: 5px;
+  scrollbar-color: #dfe3e8 transparent;
+  scrollbar-width: thin;
+}
+
 .login-page__back-to-student {
   color: #8b95a1;
   font-weight: 700;
@@ -342,6 +350,17 @@
   background: #fff1f0;
   border-radius: 9px;
   color: #d9363e;
+  font-size: 11px;
+  line-height: 1.45;
+  margin: 18px 0 0;
+  padding: 9px 11px;
+  text-align: center;
+}
+
+.login-page__form .login-page__success {
+  background: #ecfdf3;
+  border-radius: 9px;
+  color: #067647;
   font-size: 11px;
   line-height: 1.45;
   margin: 18px 0 0;
@@ -396,6 +415,12 @@
 
   .login-page__form {
     width: 100%;
+  }
+
+  .login-page__signup-form {
+    max-height: none;
+    overflow: visible;
+    padding-right: 0;
   }
 
   .login-page__form h2 {

@@ -39,10 +39,35 @@ export async function loginBusinessUser(credentials) {
   return storeLoginResponse(loginResponse, credentials.loginId, 'BROKER');
 }
 
-export async function requestBrokerSignup(formData) {
-  // TODO: API 연동 필요 - POST '-'
-  // 설명: 중개사무소 소재지, 사업자 아이디/비밀번호, 공인중개사 자격증 파일을 multipart/form-data로 보내는 가입 신청 응답을 기대합니다.
-  throw new Error('Broker signup API is not configured');
+export async function requestBrokerSignup(signupData) {
+  const response = await fetch(`${API_BASE_URL}/api/auth/signup`, {
+    method: 'POST',
+    headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      loginId: signupData.loginId,
+      username: signupData.username,
+      password: signupData.password,
+      confirmPassword: signupData.confirmPassword,
+    }),
+  });
+
+  if (!response.ok) {
+    let message = '회원가입에 실패했어요. 입력한 정보를 확인해 주세요.';
+    try {
+      const errorBody = await response.json();
+      message = errorBody.message || errorBody.error || message;
+    } catch {
+      // Keep the user-facing fallback when the server has no JSON error body.
+    }
+    throw new Error(message);
+  }
+
+  if (response.status === 204) return null;
+  try {
+    return await response.json();
+  } catch {
+    return null;
+  }
 }
 
 export async function exchangeKakaoCode(code) {
