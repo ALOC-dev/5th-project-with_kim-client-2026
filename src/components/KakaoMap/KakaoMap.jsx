@@ -6,6 +6,7 @@ import './KakaoMap.css';
 
 const SDK_ID = 'kakao-map-sdk';
 const CAMPUS_CENTER = { lat: 37.583866, lng: 127.058777 };
+const MAX_MAP_LEVEL = 5;
 const CAMPUS_AREA_RADIUS_METERS = 1000;
 const FACILITY_VISIBLE_MAX_LEVELS = { CCTV: 2, POLICE: 3, SUBWAY: 2 };
 const WALKING_METERS_PER_MINUTE = 80;
@@ -541,10 +542,11 @@ export default function KakaoMap({ listings = [], facilities = [], isLoading = f
         const map = new maps.Map(containerRef.current, {
           center: new maps.LatLng(preservedCenter.lat, preservedCenter.lng),
           draggable: true,
-          level: preservedLevelRef.current,
+          level: Math.min(preservedLevelRef.current, MAX_MAP_LEVEL),
         });
         mapRef.current = map;
         mapsRef.current = maps;
+        map.setMaxLevel?.(MAX_MAP_LEVEL);
         setCurrentMapLevel(map.getLevel?.() ?? 5);
         const focusDimOverlay = createFocusDimOverlay(maps, map);
         mapOverlays.push(focusDimOverlay);
