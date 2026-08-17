@@ -17,6 +17,7 @@ const listing = {
   supplyArea: '24.2m²',
   floor: '3층',
   maintenance: '월 6만원',
+  viewCount: 1234,
   walkingMinutes: 6,
   distance: '',
   risk: { mortgage: '없음', level: '안전', ratio: '-', lh: '-', hug: '-' },
@@ -81,6 +82,7 @@ test('설정한 학교 건물과 해당 건물까지의 거리를 보여준다',
   );
 
   expect(screen.getByText('정보기술관까지 520m')).toBeInTheDocument();
+  expect(screen.getByText('조회 1,234회 · 리뷰 0개 · 문의 정보 없음')).toBeInTheDocument();
   expect(screen.queryByText(/정보대 도보/)).not.toBeInTheDocument();
 });
 

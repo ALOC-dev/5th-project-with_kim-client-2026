@@ -92,5 +92,5 @@ function isPositiveNumber(value) {
 
 function formatWonInManwon(value) {
   const amount = Number(value) / 10000;
-  return amount.toLocaleString('ko-KR', { maximumFractionDigits: 1 });
+  return Math.trunc(amount).toLocaleString('ko-KR');
 }
