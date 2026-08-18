@@ -1,2 +1,14 @@
-.listing-preview__photo .listing-preview__back { left: 22px; right: auto; top: 16px; }
+.listing-preview__photo .listing-preview__back {
+  background: transparent !important;
+  box-shadow: none;
+  left: 22px;
+  right: auto;
+  top: 16px;
+}
+
+.listing-preview__photo .listing-preview__back:hover,
+.listing-preview__photo .listing-preview__back:focus-visible {
+  background: transparent !important;
+}
+
 @media (max-width: 760px) { .listing-preview__photo .listing-preview__back { left: 16px; top: 13px; } }
