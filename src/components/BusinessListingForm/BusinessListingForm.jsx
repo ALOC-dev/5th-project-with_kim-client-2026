@@ -9,21 +9,65 @@ const DEFAULT_DONG = SEOUL_DISTRICTS[DEFAULT_GU][0];
 const CURRENT_YEAR = new Date().getFullYear();
 
 const initialForm = {
-  title: '', address: '', buildingType: '오피스텔', roomType: '1개', toilet: '1개', floor: '4', totalFloors: '6',
-  area: '26', supplyArea: '31', builtYear: '', leaseType: 'MONTHLY', deposit: '1000', monthlyRent: '50',
-  managementFee: '7', feeType: '정액', registryStatus: 'NONE', broker: '박민준 · 시립대공인중개사',
+  title: '', address: '', buildingType: '오피스텔', roomType: '1개', toilet: '1개', floor: '', totalFloors: '',
+  area: '', supplyArea: '', builtYear: '', leaseType: 'MONTHLY', deposit: '', monthlyRent: '',
+  managementFee: '', feeType: '정액', registryStatus: 'NONE', broker: '',
 };
 
-export default function BusinessListingForm({ onCreate }) {
-  const [form, setForm] = useState(initialForm);
+function parseAddress(address = '') {
+  const tokens = address.trim().split(/\s+/);
+  const gu = SEOUL_GU_OPTIONS.find((option) => tokens.includes(option)) || DEFAULT_GU;
+  const guIndex = tokens.indexOf(gu);
+  const dong = SEOUL_DISTRICTS[gu].find((option) => tokens.includes(option)) || DEFAULT_DONG;
+  const dongIndex = tokens.indexOf(dong);
+  const remainder = dongIndex >= 0 ? tokens.slice(dongIndex + 1) : tokens.slice(guIndex + 1);
+  const roadIndex = remainder.findIndex((token) => /(?:대로|로|길)$/.test(token));
+  const isRoad = roadIndex >= 0;
+  return {
+    gu,
+    dong,
+    addressType: isRoad ? 'road' : 'lot',
+    roadName: isRoad ? remainder[roadIndex] : '',
+    buildingNumber: isRoad ? (remainder[roadIndex + 1] || '').replace(/[^0-9-].*$/, '') : '',
+    lotNumber: isRoad ? '' : (remainder[0] || '').replace(/[^0-9-].*$/, ''),
+  };
+}
+
+function toManwon(value) {
+  const amount = Number(value);
+  return Number.isFinite(amount) && amount ? String(Math.round(amount / 10000)) : '';
+}
+
+function getInitialForm(listing) {
+  if (!listing) return initialForm;
+  const raw = listing.rawHouse || {};
+  return {
+    ...initialForm,
+    title: listing.title || raw.description || '',
+    buildingType: raw.buildingType || initialForm.buildingType,
+    roomType: raw.roomNumber ? `${raw.roomNumber}개` : initialForm.roomType,
+    toilet: raw.toilet ? `${raw.toilet}개` : initialForm.toilet,
+    floor: raw.floor === null || raw.floor === undefined ? '' : String(raw.floor),
+    area: raw.area === null || raw.area === undefined ? '' : String(raw.area),
+    deposit: raw.deposit === null || raw.deposit === undefined ? String(listing.deposit || '') : toManwon(raw.deposit),
+    monthlyRent: raw.monthlyRent === null || raw.monthlyRent === undefined ? String(listing.monthlyRent || '') : toManwon(raw.monthlyRent),
+    managementFee: toManwon(raw.managementFee),
+    leaseType: raw.contractType === 'JEONSE' || listing.leaseType === 'JEONSE' ? 'JEONSE' : 'MONTHLY',
+    broker: raw.broker || listing.broker || '',
+  };
+}
+
+export default function BusinessListingForm({ onCreate, onUpdate, initialListing }) {
+  const initialAddress = parseAddress(initialListing?.address || initialListing?.rawHouse?.address || '');
+  const [form, setForm] = useState(() => getInitialForm(initialListing));
   const [photos, setPhotos] = useState([]);
   const [selectedOptions, setSelectedOptions] = useState(['fullOption', 'elevator', 'cctv', 'doorLock']);
-  const [selectedGu, setSelectedGu] = useState(DEFAULT_GU);
-  const [selectedDong, setSelectedDong] = useState(DEFAULT_DONG);
-  const [addressType, setAddressType] = useState('lot');
-  const [lotNumber, setLotNumber] = useState('');
-  const [roadName, setRoadName] = useState('');
-  const [buildingNumber, setBuildingNumber] = useState('');
+  const [selectedGu, setSelectedGu] = useState(initialAddress.gu);
+  const [selectedDong, setSelectedDong] = useState(initialAddress.dong);
+  const [addressType, setAddressType] = useState(initialAddress.addressType);
+  const [lotNumber, setLotNumber] = useState(initialAddress.lotNumber);
+  const [roadName, setRoadName] = useState(initialAddress.roadName);
+  const [buildingNumber, setBuildingNumber] = useState(initialAddress.buildingNumber);
   const [brokerLicense, setBrokerLicense] = useState(null);
 
   const updateField = (event) => setForm((current) => ({ ...current, [event.target.name]: event.target.value }));
@@ -58,10 +102,11 @@ export default function BusinessListingForm({ onCreate }) {
     const address = addressType === 'lot'
       ? `${SEOUL_CITY} ${selectedGu} ${selectedDong} ${lotNumber}`
       : `${SEOUL_CITY} ${selectedGu} ${roadName} ${buildingNumber}`;
-    onCreate({
+    const listing = {
       ...form,
       address,
-      id: `draft-${Date.now()}`,
+      id: initialListing?.id || `draft-${Date.now()}`,
+      rawHouse: initialListing?.rawHouse,
       leaseType: form.leaseType,
       deposit: Number(form.deposit) || 0,
       monthlyRent: form.leaseType === 'JEONSE' ? 0 : Number(form.monthlyRent) || 0,
@@ -74,7 +119,9 @@ export default function BusinessListingForm({ onCreate }) {
       options: selectedOptions,
       status: '등록 대기',
       updatedAt: '방금 등록',
-    });
+    };
+    if (initialListing && onUpdate) onUpdate(listing);
+    else onCreate(listing);
   };
 
   return <form id="business-listing-form" className="business-form" onSubmit={handleSubmit}>
@@ -117,10 +164,10 @@ export default function BusinessListingForm({ onCreate }) {
             <Field label="건물 유형" name="buildingType" value={form.buildingType} options={['오피스텔', '원룸', '다세대', '아파트']} onChange={handleBuildingTypeChange} />
             <Field label="방 개수" name="roomType" value={form.roomType} options={['1개', '2개', '3개']} onChange={updateField} disabled={form.buildingType === '원룸'} />
             <Field label="화장실 개수" name="toilet" value={form.toilet} options={['1개', '2개', '3개 이상']} onChange={updateField} />
-            <Field label="해당 층" name="floor" value={form.floor} onChange={updateField} />
-            <Field label="전체 층" name="totalFloors" value={form.totalFloors} onChange={updateField} />
-            <Field label="전용면적(m²)" name="area" value={form.area} onChange={updateField} />
-            <Field label="공급면적(m²)" name="supplyArea" value={form.supplyArea} onChange={updateField} />
+            <Field label="해당 층" name="floor" value={form.floor} onChange={updateField} placeholder="예: 4" />
+            <Field label="전체 층" name="totalFloors" value={form.totalFloors} onChange={updateField} placeholder="예: 6" />
+            <Field label="전용면적(m²)" name="area" value={form.area} onChange={updateField} placeholder="예: 26" />
+            <Field label="공급면적(m²)" name="supplyArea" value={form.supplyArea} onChange={updateField} placeholder="예: 31" />
             <Field label="건축 연도" name="builtYear" value={form.builtYear} onChange={updateField} type="number" min="1900" max={CURRENT_YEAR} placeholder={`예: ${CURRENT_YEAR - 5}`} required />
           </div>
         </section>
@@ -129,10 +176,10 @@ export default function BusinessListingForm({ onCreate }) {
         <section className="business-card">
           <div className="business-card__heading"><h3>가격 정보</h3><span>단위: 만원</span></div>
           <div className="business-toggle"><button type="button" className={form.leaseType === 'MONTHLY' ? 'is-active' : ''} onClick={() => setForm((current) => ({ ...current, leaseType: 'MONTHLY' }))}>월세</button><button type="button" className={form.leaseType === 'JEONSE' ? 'is-active' : ''} onClick={() => setForm((current) => ({ ...current, leaseType: 'JEONSE' }))}>전세</button></div>
-          <div className="business-form__field-grid"><Field label="보증금 (만원)" name="deposit" value={form.deposit} onChange={updateField} /><Field label="월세 (만원)" name="monthlyRent" value={form.monthlyRent} onChange={updateField} disabled={form.leaseType === 'JEONSE'} /><Field label="관리비 (만원)" name="managementFee" value={form.managementFee} onChange={updateField} /><Field label="관리비 유형" name="feeType" value={form.feeType} options={['정액', '실비']} onChange={updateField} /></div>
+          <div className="business-form__field-grid"><Field label="보증금 (만원)" name="deposit" value={form.deposit} onChange={updateField} placeholder="예: 1000" /><Field label="월세 (만원)" name="monthlyRent" value={form.monthlyRent} onChange={updateField} disabled={form.leaseType === 'JEONSE'} placeholder="예: 50" /><Field label="관리비 (만원)" name="managementFee" value={form.managementFee} onChange={updateField} placeholder="예: 7" /><Field label="관리비 유형" name="feeType" value={form.feeType} options={['정액', '실비']} onChange={updateField} /></div>
         </section>
         <section className="business-card"><h3>옵션 선택</h3><div className="business-options">{BUSINESS_OPTIONS.map((option) => <button key={option.id} type="button" className={selectedOptions.includes(option.id) ? 'is-active' : ''} onClick={() => toggleOption(option.id)}>{option.label}</button>)}</div></section>
-        <section className="business-card"><h3>등기부 및 담당 중개사</h3><div className="business-toggle business-toggle--three">{[['NONE', '없음'], ['AVAILABLE', '있음'], ['UNKNOWN', '잘 모름']].map(([value, label]) => <button key={value} type="button" className={form.registryStatus === value ? 'is-active' : ''} onClick={() => setForm((current) => ({ ...current, registryStatus: value }))}>{label}</button>)}</div><label htmlFor="business-broker">담당 공인중개사</label><input id="business-broker" name="broker" value={form.broker} onChange={updateField} /><label htmlFor="business-broker-license">담당 공인중개사 자격증</label><label className="business-license-upload" htmlFor="business-broker-license"><Icon name="upload" size={17} /><span>{brokerLicense?.name || '자격증 이미지 또는 PDF 업로드'}</span></label><input id="business-broker-license" className="business-license-input" type="file" accept="image/*,application/pdf,.pdf" onChange={(event) => setBrokerLicense(event.target.files?.[0] || null)} /></section>
+        <section className="business-card"><h3>등기부 및 담당 중개사</h3><div className="business-toggle business-toggle--three">{[['NONE', '없음'], ['AVAILABLE', '있음'], ['UNKNOWN', '잘 모름']].map(([value, label]) => <button key={value} type="button" className={form.registryStatus === value ? 'is-active' : ''} onClick={() => setForm((current) => ({ ...current, registryStatus: value }))}>{label}</button>)}</div><label htmlFor="business-broker">담당 공인중개사</label><input id="business-broker" name="broker" value={form.broker} onChange={updateField} placeholder="예: 박민준 · 시립대공인중개사" /><label htmlFor="business-broker-license">담당 공인중개사 자격증</label><label className="business-license-upload" htmlFor="business-broker-license"><Icon name="upload" size={17} /><span>{brokerLicense?.name || '자격증 이미지 또는 PDF 업로드'}</span></label><input id="business-broker-license" className="business-license-input" type="file" accept="image/*,application/pdf,.pdf" onChange={(event) => setBrokerLicense(event.target.files?.[0] || null)} /></section>
       </div>
     </div>
   </form>;
