@@ -241,6 +241,87 @@ export async function getListings(filters = {}, searchCenter = {}) {
   return houses.map(mapHouseToListing);
 }
 
+function normalizeHouseCollection(response) {
+  if (Array.isArray(response)) return response;
+  return response?.content || response?.items || response?.data || [];
+}
+
+export function mapHouseToBusinessListing(house = {}) {
+  const isJeonse = house.contractType === 'JEONSE' || house.leaseType === 'JEONSE';
+  const imageUrls = house.imageUrls || house.images || [];
+  const status = String(house.listingStatus || house.status || house.exposureStatus || '').toUpperCase();
+  const updatedAt = house.updatedAt || house.createdAt;
+  return {
+    id: String(house.houseId ?? house.id ?? `house-${Date.now()}`),
+    title: house.description || house.title || house.address || '이름 없는 매물',
+    address: house.address || '',
+    leaseType: isJeonse ? 'JEONSE' : 'MONTHLY',
+    deposit: toManwonNumber(house.deposit ?? (isJeonse ? house.price : 0)),
+    monthlyRent: toManwonNumber(house.monthlyRent ?? (!isJeonse ? house.price : 0)),
+    builtYear: house.builtYear ?? house.buildYear ?? null,
+    imageCount: Array.isArray(imageUrls) ? imageUrls.length : Number(house.imageCount) || 0,
+    status: { ACTIVE: '학생 노출 중', INACTIVE: '노출 중지', HIDDEN: '노출 중지', COMPLETED: '계약 완료' }[status] || house.listingStatus || house.status || house.exposureStatus || '등록 대기',
+    updatedAt: formatBusinessListingDate(updatedAt),
+    imageUrls,
+    rawHouse: house,
+  };
+}
+
+function toManwonNumber(value) {
+  const amount = Number(value);
+  return Number.isFinite(amount) ? Math.round(amount / 10000) : 0;
+}
+
+function formatBusinessListingDate(value) {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value);
+  return `${date.getFullYear()}.${String(date.getMonth() + 1).padStart(2, '0')}.${String(date.getDate()).padStart(2, '0')} 등록`;
+}
+
+export async function getMyListings(page = 0, size = 20) {
+  const response = await apiRequest(`/api/houses/my?page=${page}&size=${size}`);
+  return normalizeHouseCollection(response).map(mapHouseToBusinessListing);
+}
+
+export async function updateHouse(houseId, listing) {
+  const rawHouse = listing.rawHouse || {};
+  const toNumber = (value) => Number(value) || 0;
+  const toWon = (value) => toNumber(value) * 10000;
+  const roomNumber = Number.parseInt(String(listing.roomType || rawHouse.roomNumber || '').replace(/[^0-9]/g, ''), 10) || 1;
+  const response = await apiRequest(`/api/houses/${encodeURIComponent(houseId)}`, {
+    method: 'PATCH',
+    body: {
+      buildingId: rawHouse.buildingId ?? listing.buildingId ?? 0,
+      price: rawHouse.price ?? null,
+      deposit: toWon(listing.deposit),
+      monthlyRent: listing.leaseType === 'JEONSE' ? 0 : toWon(listing.monthlyRent),
+      area: toNumber(listing.area),
+      roomNumber,
+      toilet: Number.parseInt(String(listing.toilet || '').replace(/[^0-9]/g, ''), 10) || 1,
+      managementFee: toWon(listing.managementFee),
+      contractType: listing.leaseType === 'JEONSE' ? 'JEONSE' : 'MONTHLY',
+      floor: toNumber(listing.floor),
+      direction: rawHouse.direction || 'SOUTH',
+      description: listing.title || '',
+      metadata: rawHouse.metadata || {},
+    },
+  });
+  return response ? mapHouseToBusinessListing(response) : { ...listing, rawHouse: { ...rawHouse, ...listing } };
+}
+
+export async function updateHouseStatus(houseId, listingStatus) {
+  const response = await apiRequest(`/api/houses/${encodeURIComponent(houseId)}/status`, {
+    method: 'PATCH',
+    body: { listingStatus },
+  });
+  return response;
+}
+
+export async function deleteHouse(houseId) {
+  return apiRequest(`/api/houses/${encodeURIComponent(houseId)}`, { method: 'DELETE' });
+}
+
 export function getCachedListings(filters = {}, searchCenter = {}) {
   const key = getListingSearchCacheKey(filters, searchCenter);
   return loadListingSearchWithCache(key, () => getListings(filters, searchCenter));
