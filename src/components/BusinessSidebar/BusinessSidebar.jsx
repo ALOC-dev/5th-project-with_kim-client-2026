@@ -11,7 +11,7 @@ export default function BusinessSidebar({ activeSection, onNavigate, onOpenRiskG
   return <aside className="business-sidebar">
     <button className="business-sidebar__brand" type="button" onClick={() => onNavigate('list')}>
       <span className="business-sidebar__logo"><Icon name="home" size={19} /></span>
-      <span><b>UOS 자취방</b><small>시립대 학생 전용</small></span>
+      <span><b>시립대 방구하기</b><small>시립대 학생 전용</small></span>
     </button>
     <nav className="business-sidebar__nav" aria-label="관리자 메뉴">
       {items.map((item, index) => <button

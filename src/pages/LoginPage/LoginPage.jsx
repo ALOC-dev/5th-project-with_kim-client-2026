@@ -112,7 +112,7 @@ export default function LoginPage({ authError, onBusinessLogin }) {
       <div className="login-page__orb login-page__orb--bottom" />
       <div className="login-page__brand">
         <span className="login-page__logo"><Icon name="home" size={31} /></span>
-        <h1>UOS 자취방</h1>
+        <h1>시립대 방구하기</h1>
         <p>{isBusinessMode ? <>공인중개사 · 매물 등록 관리자용<br />비즈니스 콘솔</> : <>시립대 학생 전용<br />안전한 자취방 탐색 플랫폼</>}</p>
       </div>
       <ul className="login-page__benefits">{benefits.map((benefit) => <li key={benefit.label}>{benefit.symbol ? <span>{benefit.symbol}</span> : <Icon name={benefit.icon} size={17} />}{benefit.label}</li>)}</ul>
