@@ -37,8 +37,8 @@ export default function ProfileSection({ preferences, username, onOpenBuildingSe
 
   return (
     <section className="content-section profile-section">
-      <header><div><h1>내 정보</h1><p>나의 자취방 탐색 조건을 관리해요.</p></div><button>프로필 수정</button></header>
-      <section className="profile-section__user"><span>{initial}</span><div><h2>{displayName}</h2><p>서울시립대학교 컴퓨터과학부</p><small>카카오 계정으로 로그인됨</small></div></section>
+      <header><div><h1>내 정보</h1><p>나의 자취방 탐색 조건을 관리해요.</p></div></header>
+      <section className="profile-section__user"><span>{initial}</span><div><h2>{displayName}</h2><small>카카오 계정으로 로그인됨</small></div></section>
       <section className="profile-section__preference"><div><b>내가 자주 가는 수업 건물</b><strong>{buildingSummary}</strong><span>선택한 건물까지의 도보 시간을 매물에서 알려드려요.</span></div><button onClick={onOpenBuildingSettings}>변경</button></section>
       <section className="profile-section__preference"><div><b>내 월세 예산</b><strong>{monthlyBudgetSummary}</strong><span>예산에 맞는 월세 매물을 우선으로 찾아드려요.</span></div><button onClick={onOpenBudgetSettings}>변경</button></section>
       <section className="profile-section__preference"><div><b>내 전세 예산</b><strong>{jeonseBudgetSummary}</strong><span>예산에 맞는 전세 매물을 우선으로 찾아드려요.</span></div><button onClick={onOpenBudgetSettings}>변경</button></section>

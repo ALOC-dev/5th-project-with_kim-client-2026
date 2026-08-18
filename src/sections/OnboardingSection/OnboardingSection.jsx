@@ -155,7 +155,7 @@ export default function OnboardingSection({ mode = 'all', preferences, onClose, 
 
   return <div className="onboarding-overlay"><section className="onboarding" role="dialog" aria-modal="true" aria-labelledby="onboarding-title">
     <aside className="onboarding__aside">
-      <div className="onboarding__brand"><span><Icon name="home" size={26} /></span><div><b>UOS 자취방</b><small>시립대 학생 전용</small></div></div>
+      <div className="onboarding__brand"><span><Icon name="home" size={26} /></span><div><b>시립대 방구하기</b><small>시립대 학생 전용</small></div></div>
       <ol className="onboarding__steps">{steps.map((step, index) => <li className={currentStep.id === step.id ? 'is-active' : ''} key={step.id}><i>{index + 1}</i>{step.label}</li>)}</ol>
     </aside>
     <div className="onboarding__content">
